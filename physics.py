@@ -1,4 +1,5 @@
 import pygame as pg
+from enemy import Enemy
 import sys
 import math
 import os
@@ -97,6 +98,7 @@ class Game:
         self.block_group = pg.sprite.Group()
         self.bullet_group = pg.sprite.Group()
         self.effect_group = pg.sprite.Group()
+        self.enemy_group = pg.sprite.Group()
         self.running = True
         self.camera = Camera(self.WIDTH, self.HEIGHT)
 
@@ -115,8 +117,8 @@ class Game:
             image = image.convert_alpha()
         if player:
             cropped_image = image.subsurface(pg.Rect(18, 18, 68 - 24, 72 - 20))
-            scaled_image = pg.transform.scale(cropped_image, (self.cell_size, self.cell_size * 2))
-            return image, scaled_image
+            # scaled_image = pg.transform.scale(cropped_image, (self.cell_size, self.cell_size * 2))
+            return image, cropped_image
         else:
             return pg.transform.scale(image, (self.cell_size, self.cell_size))
         # return image if not player else (
@@ -166,20 +168,27 @@ class Game:
         for block in self.block_group:
             block.update()
 
+
         # Отрисовка пуль с учетом камеры
         for bullet in self.bullet_group:
             self.screen.blit(bullet.image, self.camera.apply(bullet))
 
         # Отрисовка игрока с учетом камеры
         self.player.draw_player(self.camera)
+        self.enemy.draw_enemy(self.screen, self.camera)
 
         self.block_group.update()
         self.bullet_group.update()
+        self.enemy_group.update(self.block_group)
         self.player.update()
 
     def run(self):
         pg.init()
         self.player = Player(self.WIDTH // 2, 100)
+
+        # create and set enemies (must be re-worked)
+        self.enemy = Enemy((self.WIDTH // 2 - 200, 300), 'ademan', 100, 1, (game.cell_size, game.cell_size * 2))
+        self.enemy_group.add(self.enemy)
         self.set_blocks()
 
         while self.running:
@@ -188,26 +197,6 @@ class Game:
             pg.display.flip()
             self.clock.tick(50)
         pg.quit()
-
-
-class Bullet(pg.sprite.Sprite):
-    def __init__(self, x, y, angle):
-        super().__init__()
-        self.image = pg.Surface((5, 5))
-        self.image.fill(pg.Color('red'))
-        self.rect = self.image.get_rect(center=(x, y))
-        self.speed = 20
-        self.angle = angle
-
-    def update(self):
-        for block in game.block_group:
-            if self.rect.colliderect(block.rect):
-                collission = check_collision(self.rect, block.rect)
-                effect = Effect(self.rect.x, self.rect.y, 1, collission)
-                game.effect_group.add(effect)
-                self.kill()
-        self.rect.x += self.speed * math.cos(self.angle)
-        self.rect.y += self.speed * math.sin(self.angle)
 
 
 class Player(pg.sprite.Sprite):
@@ -320,8 +309,37 @@ class Effect(pg.sprite.Sprite):
     def render(self):
         self.update()
         if not self.kill_flag:
-            game.screen.blit(self.image, game.camera.apply_dest((self.rect.x , self.rect.y) if not self.shift else (
+            game.screen.blit(self.image, game.camera.apply_dest((self.rect.x, self.rect.y) if not self.shift else (
                 self.rect.x - game.cell_size, self.rect.y - game.cell_size)))
+
+
+class Bullet(pg.sprite.Sprite):
+    def __init__(self, x, y, angle):
+        super().__init__()
+        self.image = pg.Surface((5, 5))
+        self.image.fill(pg.Color('red'))
+        self.rect = self.image.get_rect(center=(x, y))
+        self.speed = 20
+        self.angle = angle
+
+    def update(self):
+        for block in game.block_group:
+            if self.rect.colliderect(block.rect):
+                collission = check_collision(self.rect, block.rect)
+                effect = Effect(self.rect.x, self.rect.y, 1, collission)
+                game.effect_group.add(effect)
+                self.kill()
+        for enemy in game.enemy_group:
+            if self.rect.colliderect(enemy.rect):
+                # collission = check_collision(self.rect, block.rect)
+                # effect = Effect(self.rect.x, self.rect.y, 1, collission)
+                # game.effect_group.add(effect)
+                self.kill()
+                print(game.enemy_group)
+                if enemy.hp > 0:
+                    enemy.hp -= 25
+        self.rect.x += self.speed * math.cos(self.angle)
+        self.rect.y += self.speed * math.sin(self.angle)
 
 
 class Block(pg.sprite.Sprite):
