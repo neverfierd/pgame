@@ -1,8 +1,9 @@
 import pygame as pg
+from functional_file import count_files
 import sys, os
 
 G = 3
-## the animation isnt implemented yet but im working on it. right now im simply removing the image
+
 
 def load_image(name, player=False, colorkey=None):
     crop_rect = pg.Rect(18, 18, 64 - 24, 72 - 20)
@@ -15,8 +16,14 @@ def load_image(name, player=False, colorkey=None):
 
 
 enemy_animations = {
-    'ademan': {'idle': [load_image(f'enemy_animation/idle/idle_ademan{i}.png', True)[1] for i in range(5)],
-               'run': [load_image(f'enemy_animation/run/run_ademan{i}.png', True)[1] for i in range(7)]}
+    'ademan': {
+        'idle': [load_image(f'enemy_animation/idle/idle_ademan{i}.png', True)[1] for i in
+                 range(count_files('data/enemy_animation/idle'))],
+        'run': [load_image(f'enemy_animation/run/run_ademan{i}.png', True)[1] for i in
+                range(count_files('data/enemy_animation/run'))],
+        'death': [load_image(f'enemy_animation/death/death_ademan{i}.png', True)[0] for i in
+                  range(count_files('data/enemy_animation/death'))]
+    }
 }
 
 
@@ -26,12 +33,17 @@ class Enemy(pg.sprite.Sprite):
         self.x, self.y = pos
         self.width, self.height = size
         self.rect = pg.Rect(self.x, self.y, self.width, self.height)
-        # this block for physic and movement
+
+        self.kill_flag = False
+        self.death_animation_played = False
+
+        # Физика и движение
         self.v_x = 0
         self.v_y = 0
         self.d = 1
 
         self.animations = enemy_animations.get(image_type)
+        self.a_types = {"idle": 0, "run": 1, "death": 2}
         self.image = load_image(f'enemy_animation/idle/idle_ademan0.png', True)[1]
         self.image_rect = self.image.get_rect()
         self.last_update = pg.time.get_ticks()
@@ -48,25 +60,30 @@ class Enemy(pg.sprite.Sprite):
         self.d = d
 
     def update_animation(self):
-        if self.v_x == 0:
+        if self.hp <= 0:
+            a_type = 'death'
+        elif self.v_x == 0:
             a_type = 'idle'
-        else:
+        elif self.v_x != 0:
             a_type = 'run'
 
-        if self.cur_anim != (0 if a_type == 'idle' else 1):
+        anim_index = self.a_types[a_type]
+        if self.cur_anim != anim_index:
             self.cur_frame = 0
-            self.cur_anim = 0 if a_type == 'idle' else 1
+            self.cur_anim = anim_index
 
         length = len(self.animations[a_type])
         current_time = pg.time.get_ticks()
         if current_time - self.last_update >= self.animation_cd:
-            self.cur_frame = (self.cur_frame + 1) % length
-            self.image = self.animations[a_type][self.cur_frame]
+            if a_type == 'death' and self.cur_frame + 1 >= length:
+                self.death_animation_played = True  # Анимация смерти завершена
+            else:
+                self.cur_frame = (self.cur_frame + 1) % length
+                self.image = self.animations[a_type][self.cur_frame]
             self.last_update = current_time
 
     def draw_enemy(self, screen, camera):
-        if self.hp > 0:
-            # self.update(colliding_group)
+        if not self.kill_flag or not self.death_animation_played:
             if self.d > 0:
                 screen.blit(self.image, camera.apply(self))
             elif self.d < 0:
@@ -76,8 +93,12 @@ class Enemy(pg.sprite.Sprite):
 
     def update(self, block_group):
         if self.hp <= 0:
-            self.kill()
+            self.kill_flag = True
+            self.update_animation()
+            if self.death_animation_played:
+                self.kill()  # Удаляем спрайт после завершения анимации смерти
             return
+
         self.image_rect.centerx = self.rect.centerx
         self.image_rect.bottom = self.rect.bottom
         self.v_y += G
@@ -94,7 +115,7 @@ class Enemy(pg.sprite.Sprite):
                     self.v_y = 0
                     self.v_y = obj.rect.bottom - self.rect.top
                 elif self.v_y >= 0:
-                    self.v_y = 0
+                    self.v_y = obj.rect.top - self.rect.bottom
                     self.on_ground = True
 
         self.rect.x += dx

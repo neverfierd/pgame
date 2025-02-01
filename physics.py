@@ -1,5 +1,6 @@
 import pygame as pg
 from enemy import Enemy
+from functional_file import count_files
 import sys
 import math
 import os
@@ -13,9 +14,15 @@ images = {1: 'textures/blocks/mud0.png'}
 
 ### comments for effects
 # 1 - any block is hitten by bullet
+# 2 - any sprite is hitetn by bullet (blood)
 effects = {
     1: ['effects/hit_block/hit_block0.png', 'effects/hit_block/hit_block1.png', 'effects/hit_block/hit_block2.png',
-        'effects/hit_block/hit_block3.png', 'effects/hit_block/hit_block4.png']}
+        'effects/hit_block/hit_block3.png', 'effects/hit_block/hit_block4.png'],
+    2: ['effects/hit_sprite/hit_bloody_sprite0.png', 'effects/hit_sprite/hit_bloody_sprite1.png',
+        'effects/hit_sprite/hit_bloody_sprite2.png', 'effects/hit_sprite/hit_bloody_sprite3.png',
+        'effects/hit_sprite/hit_bloody_sprite4.png', 'effects/hit_sprite/hit_bloody_sprite5.png'
+
+        ]}
 
 level = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
          [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -44,22 +51,31 @@ level = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
          [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
 
 
-def check_collision(bullet, block):
-    bullet_center = bullet.center
-    block_center = block.center
+def check_collision(bullet, object):
+    # Проверяем, что bullet и object имеют атрибут center
+    if not hasattr(bullet, 'center') or not hasattr(object, 'center'):
+        raise ValueError("bullet и object должны иметь атрибут center")
 
-    dx = bullet_center[0] - block_center[0]
-    dy = bullet_center[1] - block_center[1]
+    bullet_center = bullet.center
+    object_center = object.center
+
+    dx = bullet_center[0] - object_center[0]
+    dy = bullet_center[1] - object_center[1]
+
+    res = [0, 0]
+
     if abs(dx) > abs(dy):
         if dx > 0:
-            return 0
+            return False, res
         else:
-            return 1
+            res[0] = 1
+            return True, res
     else:
         if dy > 0:
-            return 0
-        else:
-            return 1
+            return False, res
+        else:  # Сверху
+            res[1] = 1
+            return True, res
 
 
 class Camera:
@@ -168,7 +184,6 @@ class Game:
         for block in self.block_group:
             block.update()
 
-
         # Отрисовка пуль с учетом камеры
         for bullet in self.bullet_group:
             self.screen.blit(bullet.image, self.camera.apply(bullet))
@@ -187,7 +202,7 @@ class Game:
         self.player = Player(self.WIDTH // 2, 100)
 
         # create and set enemies (must be re-worked)
-        self.enemy = Enemy((self.WIDTH // 2 - 200, 300), 'ademan', 100, 1, (game.cell_size, game.cell_size * 2))
+        self.enemy = Enemy((self.WIDTH // 2 - 200, 300), 'ademan', 5000, 1, (game.cell_size, game.cell_size * 2))
         self.enemy_group.add(self.enemy)
         self.set_blocks()
 
@@ -208,7 +223,6 @@ class Player(pg.sprite.Sprite):
         self.v_x = 0
         self.v_y = 0
         self.d = 1
-        self.m = 1.2
         self.on_ground = False
         self.width = game.cell_size
         self.height = game.cell_size * 2
@@ -216,8 +230,10 @@ class Player(pg.sprite.Sprite):
         self.cur_frame = 0
         self.cur_anim = 0
         self.animations = {
-            'idle': [game.load_image(f'player_animation/idle/idle_{i}.png', True)[1] for i in range(4)],
-            'run': [game.load_image(f'player_animation/run/run_{i}.png', True)[1] for i in range(10)]
+            'idle': [game.load_image(f'player_animation/idle/idle_{i}.png', True)[1] for i in
+                     range(count_files('data/player_animation/idle'))],
+            'run': [game.load_image(f'player_animation/run/run_{i}.png', True)[1] for i in
+                    range(count_files('data/player_animation/run'))]
         }
         self.animation_cd = 200
 
@@ -282,7 +298,7 @@ class Player(pg.sprite.Sprite):
 
 
 class Effect(pg.sprite.Sprite):
-    def __init__(self, x, y, effect_type, shift_needed=0):
+    def __init__(self, x, y, effect_type, shift_needed):
         super().__init__()
         self.names = effects.get(effect_type)
         self.images = [game.load_image(self.names[i]) for i in range(len(self.names))]
@@ -292,8 +308,9 @@ class Effect(pg.sprite.Sprite):
         self.kill_flag = False
         self.frame_index = 0
         self.animation_speed = 0.1
-        self.last_update = pg.time.get_ticks()  #
-        self.shift = True if shift_needed == 1 else False
+        self.last_update = pg.time.get_ticks()
+        self.shift_need = shift_needed[0]
+        self.shift = shift_needed[1]
 
     def update(self):
         if not self.kill_flag:
@@ -309,8 +326,12 @@ class Effect(pg.sprite.Sprite):
     def render(self):
         self.update()
         if not self.kill_flag:
-            game.screen.blit(self.image, game.camera.apply_dest((self.rect.x, self.rect.y) if not self.shift else (
-                self.rect.x - game.cell_size, self.rect.y - game.cell_size)))
+            if not self.shift_need:
+                game.screen.blit(self.image, game.camera.apply_dest((self.rect.x - game.cell_size // 2, self.rect.y)))
+            elif self.shift_need:
+                game.screen.blit(self.image, game.camera.apply_dest(
+                    (self.rect.x - game.cell_size // 2 * self.shift[0], self.rect.y - game.cell_size * self.shift[1])
+                ))
 
 
 class Bullet(pg.sprite.Sprite):
@@ -325,19 +346,23 @@ class Bullet(pg.sprite.Sprite):
     def update(self):
         for block in game.block_group:
             if self.rect.colliderect(block.rect):
-                collission = check_collision(self.rect, block.rect)
-                effect = Effect(self.rect.x, self.rect.y, 1, collission)
+                collision, shift = check_collision(self.rect, block.rect)
+                print(shift)
+                effect = Effect(self.rect.x, self.rect.y, 1, (collision, shift))
                 game.effect_group.add(effect)
                 self.kill()
+
         for enemy in game.enemy_group:
             if self.rect.colliderect(enemy.rect):
-                # collission = check_collision(self.rect, block.rect)
-                # effect = Effect(self.rect.x, self.rect.y, 1, collission)
-                # game.effect_group.add(effect)
+                collision, shift = check_collision(self.rect, enemy.rect)
+
+                effect = Effect(self.rect.x, self.rect.y, 2, (collision, shift))
+                game.effect_group.add(effect)
                 self.kill()
-                print(game.enemy_group)
                 if enemy.hp > 0:
                     enemy.hp -= 25
+
+        # Движение пули
         self.rect.x += self.speed * math.cos(self.angle)
         self.rect.y += self.speed * math.sin(self.angle)
 
