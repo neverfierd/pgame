@@ -3,7 +3,8 @@ from functional_file import count_files
 import sys, os
 
 G = 3
-
+pg.font.init()
+font_1 = pg.font.Font(None, 16)
 
 def load_image(name, player=False, colorkey=None):
     crop_rect = pg.Rect(18, 18, 64 - 24, 72 - 20)
@@ -84,6 +85,7 @@ class Enemy(pg.sprite.Sprite):
 
     def draw_enemy(self, screen, camera):
         if not self.kill_flag or not self.death_animation_played:
+            screen.blit(font_1.render(f"{self.hp}", True, (3, 255, 4)), camera.apply_dest((self.rect.x, self.rect.y - 10)))
             if self.d > 0:
                 screen.blit(self.image, camera.apply(self))
             elif self.d < 0:

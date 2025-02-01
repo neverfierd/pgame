@@ -1,3 +1,5 @@
+import random
+
 import pygame as pg
 from enemy import Enemy
 from functional_file import count_files
@@ -220,6 +222,7 @@ class Game:
         self.bullet_group.update()
         self.enemy_group.update(self.block_group)
         self.player.update()
+        self.player.show_info()
 
     def run(self):
         pg.init()
@@ -228,7 +231,7 @@ class Game:
         self.player = Player(self.WIDTH // 2, 100)
 
         # create and set enemies (must be re-worked)
-        self.enemy = Enemy((self.WIDTH // 2 - 200, 300), 'ademan', 5000, 1, (game.cell_size, game.cell_size * 2))
+        self.enemy = Enemy((self.WIDTH // 2 - 200, 300), 'ademan', 500, 1, (game.cell_size, game.cell_size * 2))
         self.enemy_group.add(self.enemy)
         self.set_blocks()
 
@@ -261,12 +264,19 @@ class Player(pg.sprite.Sprite):
             'run': [game.load_image(f'player_animation/run/run_{i}.png', True)[1] for i in
                     range(count_files('data/player_animation/run'))]
         }
+
+        self.guns = {1: Weapon(20, 15, 14,2500, 350, 'pistol', None, 1),
+                     2: Weapon(55, 30, 30, 4000, 250, 'carabine', None, 2),
+                     3: Weapon(220, 30, 5, 6500, 1500, 'rifle', None, 3),
+                     4: Weapon(30, 20, 8, 6500, 1000, 'shotgun', None, 4)
+                     }
+
         self.animation_cd = 200
         self.bullets = 50
         self.can_shoot = True
         self.last_shoot_time = 0
 
-        self.weapon = Weapon(1000, 15, 30, 3500, 100, 'shotgun', None)  # game.load_image('weapon/pistol.png')
+        self.weapon = self.guns[2]
 
     def show_info(self):
         bullet_counter = font_3.render(f"{self.weapon.bullets} / {self.bullets}", True, pg.color.Color('white'))
@@ -275,13 +285,21 @@ class Player(pg.sprite.Sprite):
     def shoot(self, angle):
         if pg.time.get_ticks() - self.weapon.shoot_cd >= self.last_shoot_time :
             self.can_shoot = True
+
         if self.weapon.bullets > 0 and self.can_shoot:
-            bullet = Bullet(self.rect.centerx, self.rect.centery - 10, angle, 20)
-            play_sound(shoot_sounds.get(self.weapon.name))
-            game.bullet_group.add(bullet)
-            self.weapon.bullets -= 1
-            self.last_shoot_time = pg.time.get_ticks()
-            self.can_shoot = False
+            if self.weapon.type == 4:
+                [game.bullet_group.add(Bullet(self.rect.centerx, self.rect.centery - 10, angle, self.weapon.speed + random.randint(-5, 5), 3 * i)) for i in range(-4, 5)]
+                play_sound(shoot_sounds.get(self.weapon.name))
+                self.weapon.bullets -= 1
+                self.last_shoot_time = pg.time.get_ticks()
+                self.can_shoot = False
+            else:
+                bullet = Bullet(self.rect.centerx, self.rect.centery - 10, angle, self.weapon.speed, 0)
+                play_sound(shoot_sounds.get(self.weapon.name))
+                game.bullet_group.add(bullet)
+                self.weapon.bullets -= 1
+                self.last_shoot_time = pg.time.get_ticks()
+                self.can_shoot = False
         if self.weapon.bullets <= 0:
             play_sound('data/weapon/shackle.mp3')
 
@@ -311,9 +329,10 @@ class Player(pg.sprite.Sprite):
         else:
             a_type = 'run'
 
-        if self.cur_anim != (0 if a_type == 'idle' else 1):
+        anim_index = self.animations[a_type]
+        if self.cur_anim != anim_index:
             self.cur_frame = 0
-            self.cur_anim = 0 if a_type == 'idle' else 1
+            self.cur_anim = anim_index
 
         length = len(self.animations[a_type])
         current_time = pg.time.get_ticks()
@@ -328,12 +347,10 @@ class Player(pg.sprite.Sprite):
             self.on_ground = False
 
     def draw_player(self, camera):
-
         if self.d > 0:
             game.screen.blit(self.image, camera.apply(self))
         elif self.d < 0:
             game.screen.blit(pg.transform.flip(self.image, True, False), camera.apply(self))
-        self.show_info()
         pg.draw.rect(game.screen, pg.color.Color('blue'), camera.apply(self), 1)
         pg.draw.rect(game.screen, pg.color.Color('red'), camera.apply(self.image_rect, True), 1)
 
@@ -402,19 +419,23 @@ class Effect(pg.sprite.Sprite):
 
 
 class Bullet(pg.sprite.Sprite):
-    def __init__(self, x, y, angle, speed):
+    def __init__(self, x, y, angle, speed, shift=0):
         super().__init__()
         self.image = pg.Surface((5, 5))
         self.image.fill(pg.Color('red'))
         self.rect = self.image.get_rect(center=(x, y))
         self.speed = speed
-        self.angle = angle
+        angle_degrees = math.degrees(angle)
+        # 2. Добавляем смещение в градусах
+        shifted_angle_degrees = angle_degrees + shift
+        # 3. Преобразуем обратно в радианы
+        self.angle = math.radians(shifted_angle_degrees)
 
     def update(self):
         for block in game.block_group:
             if self.rect.colliderect(block.rect):
                 collision, shift = check_collision(self.rect, block.rect)
-                print(shift)
+
                 effect = Effect(self.rect.x, self.rect.y, 1, (collision, shift))
                 game.effect_group.add(effect)
                 self.kill()
@@ -449,7 +470,7 @@ class Block(pg.sprite.Sprite):
 
 
 class Weapon:
-    def __init__(self, damage, bullet_speed, capacity, reload_time, shoot_cd, name, image):
+    def __init__(self, damage, bullet_speed, capacity, reload_time, shoot_cd, name, image, type):
         self.damage = damage
         self.speed = bullet_speed
         self.bullets = capacity
@@ -458,7 +479,9 @@ class Weapon:
         self.shoot_cd = shoot_cd
         self.name = name
         self.image = image
+        self.type = type
         # self.rect = self.image.get_rect()
+
 
 
 # class for items that can be interacted
