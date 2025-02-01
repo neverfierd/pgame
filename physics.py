@@ -5,12 +5,22 @@ import sys
 import math
 import os
 
+pg.font.init()
+
+font_3 = pg.font.Font(None, 32)
+
 game_parameters = {
     'resolution': (1920, 1080),
     'difficulty': 'normal'
 }
 
-images = {1: 'textures/blocks/mud0.png'}
+images = {1: 'textures/blocks/mud0.png',
+          100: 'textures/entities/medkit.png'}
+
+shoot_sounds = {'pistol': 'data/weapon/pistol_shoot.wav',
+                'carabine': 'data/weapon/carabine_shoot.wav',
+                'rifle': 'data/weapon/rifle_shoot.wav',
+                'shotgun': 'data/weapon/shotgun_shoot.wav'}
 
 ### comments for effects
 # 1 - any block is hitten by bullet
@@ -76,6 +86,19 @@ def check_collision(bullet, object):
         else:  # Сверху
             res[1] = 1
             return True, res
+
+
+def play_sound(sound_path):
+    try:
+        sound = pg.mixer.Sound(sound_path)
+        sound.play()
+        return True
+    except pg.error:
+        return False
+    except FileNotFoundError:
+        return False
+    except Exception:
+        return False
 
 
 class Camera:
@@ -158,12 +181,13 @@ class Game:
                     self.player.jump()
                 if event.key == pg.K_ESCAPE:
                     self.running = False
+                if event.key == pg.K_r:
+                    self.player.reload()
             if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:  # ЛКМ для стрельбы
                 mouse_x, mouse_y = pg.mouse.get_pos()
                 angle = math.atan2(mouse_y - self.camera.apply(self.player).centery,
                                    mouse_x - self.camera.apply(self.player).centerx)
-                bullet = Bullet(self.player.rect.centerx, self.player.rect.centery, angle)
-                self.bullet_group.add(bullet)
+                self.player.shoot(angle)
 
     def update(self):
         keys = pg.key.get_pressed()
@@ -199,6 +223,8 @@ class Game:
 
     def run(self):
         pg.init()
+        pg.mixer.init()
+
         self.player = Player(self.WIDTH // 2, 100)
 
         # create and set enemies (must be re-worked)
@@ -236,6 +262,44 @@ class Player(pg.sprite.Sprite):
                     range(count_files('data/player_animation/run'))]
         }
         self.animation_cd = 200
+        self.bullets = 50
+        self.can_shoot = True
+        self.last_shoot_time = 0
+
+        self.weapon = Weapon(1000, 15, 30, 3500, 100, 'shotgun', None)  # game.load_image('weapon/pistol.png')
+
+    def show_info(self):
+        bullet_counter = font_3.render(f"{self.weapon.bullets} / {self.bullets}", True, pg.color.Color('white'))
+        game.screen.blit(bullet_counter, (game.WIDTH - 100, 50))
+
+    def shoot(self, angle):
+        if pg.time.get_ticks() - self.weapon.shoot_cd >= self.last_shoot_time :
+            self.can_shoot = True
+        if self.weapon.bullets > 0 and self.can_shoot:
+            bullet = Bullet(self.rect.centerx, self.rect.centery - 10, angle, 20)
+            play_sound(shoot_sounds.get(self.weapon.name))
+            game.bullet_group.add(bullet)
+            self.weapon.bullets -= 1
+            self.last_shoot_time = pg.time.get_ticks()
+            self.can_shoot = False
+        if self.weapon.bullets <= 0:
+            play_sound('data/weapon/shackle.mp3')
+
+    def reload(self):
+        self.can_shoot = False
+        need_to_reload = self.weapon.capacity - self.weapon.bullets
+        if self.bullets >= need_to_reload:
+            self.bullets -= need_to_reload
+            self.weapon.bullets += need_to_reload
+            play_sound('data/weapon/reload_carabine.wav')  ## make it like a shoot sound (this WIP)
+            self.last_shoot_time += self.weapon.reload_time
+        elif self.bullets <= need_to_reload:
+            self.weapon.bullets += self.bullets
+            self.bullets = 0
+            play_sound('data/weapon/reload_carabine.wav')
+            self.last_shoot_time += self.weapon.reload_time
+        else:
+            return
 
     def update_move(self, v, d):
         self.v_x = v
@@ -264,15 +328,18 @@ class Player(pg.sprite.Sprite):
             self.on_ground = False
 
     def draw_player(self, camera):
-        # Отрисовка игрока с учетом камеры
+
         if self.d > 0:
             game.screen.blit(self.image, camera.apply(self))
         elif self.d < 0:
             game.screen.blit(pg.transform.flip(self.image, True, False), camera.apply(self))
+        self.show_info()
         pg.draw.rect(game.screen, pg.color.Color('blue'), camera.apply(self), 1)
         pg.draw.rect(game.screen, pg.color.Color('red'), camera.apply(self.image_rect, True), 1)
 
     def update(self):
+        ##shoot block
+
         self.image_rect.centerx = self.rect.centerx
         self.image_rect.bottom = self.rect.bottom
         self.v_y += game.G
@@ -335,12 +402,12 @@ class Effect(pg.sprite.Sprite):
 
 
 class Bullet(pg.sprite.Sprite):
-    def __init__(self, x, y, angle):
+    def __init__(self, x, y, angle, speed):
         super().__init__()
         self.image = pg.Surface((5, 5))
         self.image.fill(pg.Color('red'))
         self.rect = self.image.get_rect(center=(x, y))
-        self.speed = 20
+        self.speed = speed
         self.angle = angle
 
     def update(self):
@@ -357,10 +424,11 @@ class Bullet(pg.sprite.Sprite):
                 collision, shift = check_collision(self.rect, enemy.rect)
 
                 effect = Effect(self.rect.x, self.rect.y, 2, (collision, shift))
+                # play_sound('')
                 game.effect_group.add(effect)
                 self.kill()
                 if enemy.hp > 0:
-                    enemy.hp -= 25
+                    enemy.hp -= game.player.weapon.damage
 
         # Движение пули
         self.rect.x += self.speed * math.cos(self.angle)
@@ -372,6 +440,33 @@ class Block(pg.sprite.Sprite):
         super().__init__()
         self.image = game.load_image(images.get(image_type, 0))  ###pg.Surface((game.cell_size, game.cell_size))
 
+        self.rect = self.image.get_rect()
+        self.rect.x, self.rect.y = x, y
+
+    def update(self):
+        game.screen.blit(self.image, game.camera.apply_dest((self.rect.x, self.rect.y)))
+        pg.draw.rect(game.screen, (0, 0, 0), game.camera.apply(self), 1)
+
+
+class Weapon:
+    def __init__(self, damage, bullet_speed, capacity, reload_time, shoot_cd, name, image):
+        self.damage = damage
+        self.speed = bullet_speed
+        self.bullets = capacity
+        self.capacity = capacity
+        self.reload_time = reload_time
+        self.shoot_cd = shoot_cd
+        self.name = name
+        self.image = image
+        # self.rect = self.image.get_rect()
+
+
+# class for items that can be interacted
+class Entity(pg.sprite.Sprite):
+    def __init__(self, x, y, image_type, functional):
+        super().__init__()
+        self.image = game.load_image(images.get(image_type, 0))  ###pg.Surface((game.cell_size, game.cell_size))
+        self.functional = functional
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = x, y
 
