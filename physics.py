@@ -41,7 +41,6 @@ def read_level_file(filename):
 
     with open(filename, 'r') as file:
         for line in file:
-            # Убираем пробелы и символы новой строки, затем преобразуем строку в список
             line = line.strip().strip(',')  # Убираем лишние пробелы и запятые
             if line:  # Проверяем, что строка не пустая
                 # Преобразуем строку в список целых чисел
@@ -207,25 +206,27 @@ class Game:
         for bullet in self.bullet_group:
             self.screen.blit(bullet.image, self.camera.apply(bullet))
 
+        for enemy in self.enemy_group:
+            enemy.update(self.block_group, self.player)
+            enemy.draw_enemy(self.screen, self.camera)
         # Отрисовка игрока с учетом камеры
         self.player.draw_player(self.camera)
-        self.enemy.draw_enemy(self.screen, self.camera)
+        # self.enemy.draw_enemy(self.screen, self.camera)
 
         self.block_group.update()
         self.bullet_group.update()
-        self.enemy_group.update(self.block_group)
+        self.enemy_group.update(self.block_group, self.player)
         self.player.update()
         self.player.show_info()
 
     def run(self):
         pg.init()
         pg.mixer.init()
-
         self.player = Player(self.WIDTH // 2, 100)
 
         # create and set enemies (must be re-worked)
-        self.enemy = Enemy((self.WIDTH // 2 - 200, 300), 'ademan', 500, 1, (game.cell_size, game.cell_size * 2))
-        self.enemy_group.add(self.enemy)
+        # self.enemy = Enemy((self.WIDTH // 2 - 200, 300), 'ademan', 500, 1, (game.cell_size, game.cell_size * 2))
+        self.enemy_group.add(Enemy((self.WIDTH // 2 - 200 - 100 * i, 300), 'ademan', 500, 1, (game.cell_size, game.cell_size * 2)) for i in range(5))
         self.set_blocks()
 
         while self.running:
@@ -258,10 +259,10 @@ class Player(pg.sprite.Sprite):
                     range(count_files('data/player_animation/run'))]
         }
 
-        self.guns = {1: Weapon(40, 20, 14, 2500, 350, 'pistol', None, 1),
-                     2: Weapon(85, 30, 30, 4000, 200, 'carabine', None, 2),
-                     3: Weapon(320, 30, 10, 6500, 3500, 'rifle', None, 3),
-                     4: Weapon(30, 25, 8, 6500, 1000, 'shotgun', None, 4)
+        self.guns = {1: Weapon(40, 20, 14, 5000, 350, 'pistol', None, 1),
+                     2: Weapon(85, 30, 30, 5000, 200, 'carabine', None, 2),
+                     3: Weapon(320, 30, 10, 6500, 4000, 'rifle', None, 3),
+                     4: Weapon(30, 25, 8, 6500, 1500, 'shotgun', None, 4)
                      }
 
         self.animation_cd = 200
@@ -269,7 +270,7 @@ class Player(pg.sprite.Sprite):
         self.can_shoot = True
         self.last_shoot_time = 0
 
-        self.weapon = self.guns[2]
+        self.weapon = self.guns[4]
 
     def show_info(self):
         bullet_counter = font_3.render(f"{self.weapon.bullets} / {self.bullets}", True, pg.color.Color('white'))
@@ -283,7 +284,7 @@ class Player(pg.sprite.Sprite):
             if self.weapon.type == 4:
                 [game.bullet_group.add(
                     Bullet(self.rect.centerx, self.rect.centery - 10, angle, self.weapon.speed + random.randint(-5, 5),
-                           1 * i)) for i in range(-4, 5)]
+                           3 * i)) for i in range(-4, 5)]
                 play_sound(shoot_sounds.get(self.weapon.name))
                 self.weapon.bullets -= 1
                 self.last_shoot_time = pg.time.get_ticks()
@@ -442,7 +443,7 @@ class Bullet(pg.sprite.Sprite):
                 collision, shift = check_collision(self.rect, enemy.rect)
 
                 effect = Effect(self.rect.x, self.rect.y, 2, (collision, shift))
-                # play_sound('')
+                play_sound('data/weapon/bullet_sprite_hit.wav')
                 game.effect_group.add(effect)
 
                 self.kill()
@@ -495,5 +496,5 @@ class Entity(pg.sprite.Sprite):
         pg.draw.rect(game.screen, (0, 0, 0), game.camera.apply(self), 1)
 
 
-game = Game(game_parameters, True)
+game = Game(game_parameters, False)
 game.run()
