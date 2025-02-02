@@ -1,11 +1,10 @@
 import random
-
 import pygame as pg
+import sys, os
+import math
+
 from enemy import Enemy
 from functional_file import count_files
-import sys
-import math
-import os
 
 pg.font.init()
 
@@ -36,31 +35,24 @@ effects = {
 
         ]}
 
-level = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
+
+def read_level_file(filename):
+    level_array = []
+
+    with open(filename, 'r') as file:
+        for line in file:
+            # Убираем пробелы и символы новой строки, затем преобразуем строку в список
+            line = line.strip().strip(',')  # Убираем лишние пробелы и запятые
+            if line:  # Проверяем, что строка не пустая
+                # Преобразуем строку в список целых чисел
+                row = list(map(int, line.strip('[]').split(', ')))
+                level_array.append(row)  # Добавляем строку в двумерный массив
+
+    return level_array
+
+
+# Пример использования
+level = read_level_file('data/level.txt')
 
 
 def check_collision(bullet, object):
@@ -128,13 +120,14 @@ class Camera:
 
 
 class Game:
-    def __init__(self, game_parameters):
+    def __init__(self, game_parameters, fullsceen=False):
         self.game_parameters = game_parameters
-        self.WIDTH, self.HEIGHT = self.game_parameters.get('resolution')
-        self.cell_size = 40 if self.HEIGHT >= 1600 else 30
+        self.WIDTH, self.HEIGHT = self.game_parameters.get('resolution') if not fullsceen else (1920, 1080)
+        self.cell_size = 30 if self.HEIGHT <= 1600 else 40
         self.G = 5
         self.clock = pg.time.Clock()
-        self.screen = pg.display.set_mode((self.WIDTH, self.HEIGHT))
+        self.screen = pg.display.set_mode((self.WIDTH, self.HEIGHT)) if not fullsceen else pg.display.set_mode(
+            (self.WIDTH, self.HEIGHT), pg.FULLSCREEN)
         self.player = None
         self.block_group = pg.sprite.Group()
         self.bullet_group = pg.sprite.Group()
@@ -265,10 +258,10 @@ class Player(pg.sprite.Sprite):
                     range(count_files('data/player_animation/run'))]
         }
 
-        self.guns = {1: Weapon(20, 15, 14,2500, 350, 'pistol', None, 1),
-                     2: Weapon(55, 30, 30, 4000, 250, 'carabine', None, 2),
-                     3: Weapon(220, 30, 5, 6500, 1500, 'rifle', None, 3),
-                     4: Weapon(30, 20, 8, 6500, 1000, 'shotgun', None, 4)
+        self.guns = {1: Weapon(40, 20, 14, 2500, 350, 'pistol', None, 1),
+                     2: Weapon(85, 30, 30, 4000, 200, 'carabine', None, 2),
+                     3: Weapon(320, 30, 10, 6500, 3500, 'rifle', None, 3),
+                     4: Weapon(30, 25, 8, 6500, 1000, 'shotgun', None, 4)
                      }
 
         self.animation_cd = 200
@@ -283,18 +276,21 @@ class Player(pg.sprite.Sprite):
         game.screen.blit(bullet_counter, (game.WIDTH - 100, 50))
 
     def shoot(self, angle):
-        if pg.time.get_ticks() - self.weapon.shoot_cd >= self.last_shoot_time :
+        if pg.time.get_ticks() - self.weapon.shoot_cd >= self.last_shoot_time:
             self.can_shoot = True
 
         if self.weapon.bullets > 0 and self.can_shoot:
             if self.weapon.type == 4:
-                [game.bullet_group.add(Bullet(self.rect.centerx, self.rect.centery - 10, angle, self.weapon.speed + random.randint(-5, 5), 3 * i)) for i in range(-4, 5)]
+                [game.bullet_group.add(
+                    Bullet(self.rect.centerx, self.rect.centery - 10, angle, self.weapon.speed + random.randint(-5, 5),
+                           1 * i)) for i in range(-4, 5)]
                 play_sound(shoot_sounds.get(self.weapon.name))
                 self.weapon.bullets -= 1
                 self.last_shoot_time = pg.time.get_ticks()
                 self.can_shoot = False
             else:
-                bullet = Bullet(self.rect.centerx, self.rect.centery - 10, angle, self.weapon.speed, 0)
+                bullet = Bullet(self.rect.centerx, self.rect.centery - 10, angle,
+                                self.weapon.speed + random.randint(-5, 5), random.randint(-1, 1))
                 play_sound(shoot_sounds.get(self.weapon.name))
                 game.bullet_group.add(bullet)
                 self.weapon.bullets -= 1
@@ -304,20 +300,21 @@ class Player(pg.sprite.Sprite):
             play_sound('data/weapon/shackle.mp3')
 
     def reload(self):
-        self.can_shoot = False
-        need_to_reload = self.weapon.capacity - self.weapon.bullets
-        if self.bullets >= need_to_reload:
-            self.bullets -= need_to_reload
-            self.weapon.bullets += need_to_reload
-            play_sound('data/weapon/reload_carabine.wav')  ## make it like a shoot sound (this WIP)
-            self.last_shoot_time += self.weapon.reload_time
-        elif self.bullets <= need_to_reload:
-            self.weapon.bullets += self.bullets
-            self.bullets = 0
-            play_sound('data/weapon/reload_carabine.wav')
-            self.last_shoot_time += self.weapon.reload_time
-        else:
-            return
+        if self.bullets > 0:
+            self.can_shoot = False
+            need_to_reload = self.weapon.capacity - self.weapon.bullets
+            if self.bullets >= need_to_reload:
+                self.bullets -= need_to_reload
+                self.weapon.bullets += need_to_reload
+                play_sound('data/weapon/reload_carabine.wav')  ## make it like a shoot sound (this WIP)
+                self.last_shoot_time += self.weapon.reload_time
+            elif self.bullets <= need_to_reload:
+                self.weapon.bullets += self.bullets
+                self.bullets = 0
+                play_sound('data/weapon/reload_carabine.wav')
+                self.last_shoot_time += self.weapon.reload_time
+            else:
+                return
 
     def update_move(self, v, d):
         self.v_x = v
@@ -421,8 +418,7 @@ class Effect(pg.sprite.Sprite):
 class Bullet(pg.sprite.Sprite):
     def __init__(self, x, y, angle, speed, shift=0):
         super().__init__()
-        self.image = pg.Surface((5, 5))
-        self.image.fill(pg.Color('red'))
+        self.image = pg.transform.scale(game.load_image('weapon/images/bullet.png'), (4, 4))
         self.rect = self.image.get_rect(center=(x, y))
         self.speed = speed
         angle_degrees = math.degrees(angle)
@@ -438,6 +434,7 @@ class Bullet(pg.sprite.Sprite):
 
                 effect = Effect(self.rect.x, self.rect.y, 1, (collision, shift))
                 game.effect_group.add(effect)
+                play_sound('data/weapon/block_hit.wav')
                 self.kill()
 
         for enemy in game.enemy_group:
@@ -447,6 +444,7 @@ class Bullet(pg.sprite.Sprite):
                 effect = Effect(self.rect.x, self.rect.y, 2, (collision, shift))
                 # play_sound('')
                 game.effect_group.add(effect)
+
                 self.kill()
                 if enemy.hp > 0:
                     enemy.hp -= game.player.weapon.damage
@@ -483,7 +481,6 @@ class Weapon:
         # self.rect = self.image.get_rect()
 
 
-
 # class for items that can be interacted
 class Entity(pg.sprite.Sprite):
     def __init__(self, x, y, image_type, functional):
@@ -498,5 +495,5 @@ class Entity(pg.sprite.Sprite):
         pg.draw.rect(game.screen, (0, 0, 0), game.camera.apply(self), 1)
 
 
-game = Game(game_parameters)
+game = Game(game_parameters, True)
 game.run()

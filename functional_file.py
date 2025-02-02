@@ -6,5 +6,3 @@ def count_files(directory):
     except (FileNotFoundError, NotADirectoryError, PermissionError, Exception):
         return -1
 
-
-print(count_files('data/enemy_animation/death'))

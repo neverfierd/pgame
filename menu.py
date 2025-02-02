@@ -22,7 +22,7 @@ clock = pg.time.Clock()
 # 0 - 9 - menu_main_buttons
 # 10 - 19 - settings_main_buttons
 
-resolutions = {10: (1600, 1200), 11: (1280, 960), 12: (1280, 720), 13: (1920, 1080)}
+resolutions = {10: (1600, 1200), 11: (1280, 960), 12: (1280, 720), 13: (1920, 1080), 14: 'fullscreen'}
 
 game_start_params = {'resolution': (1280, 720), 'level': 'normal'}
 
@@ -85,9 +85,10 @@ class Menu:
         res_button_2 = Button((50, 200), 300, 40, '1280 x 960 (4:3)', 11)
         res_button_3 = Button((50, 250), 300, 40, '1280 x 720(16:9)', 12)
         res_button_4 = Button((50, 300), 300, 40, '1920 x 1080(16:9)', 13)
+        fullscreen_button = Button((50, 450), 300, 40, 'Полноэкранный', 14)
         confirm_button = Button((400, 400), 150, 50, 'СОХРАНИТЬ', 19)
 
-        res_buttons = [res_button_1, res_button_2, res_button_3, res_button_4, confirm_button]
+        res_buttons = [res_button_1, res_button_2, res_button_3, res_button_4, fullscreen_button, confirm_button]
 
         button_container.extend(res_buttons, )
         # button container append
@@ -116,13 +117,22 @@ class Button:
             # here you can add buttons and change their functions
             if event and self.f == 1:
                 physics.game_parameters = game_start_params
-                physics.game = physics.Game(game_start_params)
-                physics.game.run()
+                try:
+                    if game_start_params['resolution'] == 'fullscreen':
+                        physics.game = physics.Game(game_start_params, True)
+                        # pg.display.set_mode((0, 0), pg.FULLSCREEN)
+                    else:
+                        physics.game = physics.Game(game_start_params, False)
+                        # pg.display.set_mode(game_start_params['resolution'])
+                    # physics.game = physics.Game(game_start_params)
+                    physics.game.run()
+                except Exception as e:
+                    print(f"Error starting game: {e}")
 
             if event and self.f == 2:
                 menu.menu_oppened = False
                 menu.settings_opened = True
-            if event and self.f in (10, 11, 12, 13):
+            if event and self.f in (10, 11, 12, 13, 14):
                 change_resolution(resolutions.get(self.f))
             if event and self.f == 19:
                 menu.settings_opened = False
