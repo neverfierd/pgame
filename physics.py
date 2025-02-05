@@ -1,4 +1,4 @@
-import random
+import random, time
 import pygame as pg
 import sys, os
 import math
@@ -12,10 +12,12 @@ font_3 = pg.font.Font(None, 32)
 
 game_parameters = {
     'resolution': (1920, 1080),
-    'difficulty': 'normal'
+    'difficulty': 'extreme'
 }
 
 images = {1: 'textures/blocks/mud0.png',
+          2: 'textures/blocks/box.png',
+          3: 'textures/blocks/brick.png',
           100: 'textures/entities/medkit.png'}
 
 shoot_sounds = {'pistol': 'data/weapon/pistol_shoot.wav',
@@ -35,17 +37,18 @@ effects = {
 
         ]}
 
+difficulties = {'easy': 20, 'normal': 15, 'hard': 10, 'peace': 0, 'extreme': 5}
+
 
 def read_level_file(filename):
     level_array = []
 
     with open(filename, 'r') as file:
         for line in file:
-            line = line.strip().strip(',')  # Убираем лишние пробелы и запятые
-            if line:  # Проверяем, что строка не пустая
-                # Преобразуем строку в список целых чисел
+            line = line.strip().strip(',')
+            if line:
                 row = list(map(int, line.strip('[]').split(', ')))
-                level_array.append(row)  # Добавляем строку в двумерный массив
+                level_array.append(row)
 
     return level_array
 
@@ -54,8 +57,22 @@ def read_level_file(filename):
 level = read_level_file('data/level.txt')
 
 
+def get_spawn_points(level, block_size):
+    spawn_points = []
+    for row_index, row in enumerate(level):
+        for col_index, block in enumerate(row):
+            if block == 1:  # Если это блок
+                # Проверяем, есть ли 2 блока над ним свободными
+                if (row_index > 1 and
+                        level[row_index - 1][col_index] == 0 and
+                        level[row_index - 2][col_index] == 0):
+                    x = col_index * block_size
+                    y = (row_index - 2) * block_size  # Два блока над блоком
+                    spawn_points.append((x, y))
+    return spawn_points
+
+
 def check_collision(bullet, object):
-    # Проверяем, что bullet и object имеют атрибут center
     if not hasattr(bullet, 'center') or not hasattr(object, 'center'):
         raise ValueError("bullet и object должны иметь атрибут center")
 
@@ -123,6 +140,10 @@ class Game:
         self.game_parameters = game_parameters
         self.WIDTH, self.HEIGHT = self.game_parameters.get('resolution') if not fullsceen else (1920, 1080)
         self.cell_size = 30 if self.HEIGHT <= 1600 else 40
+        self.map_size = ()
+        self.difficulty = self.game_parameters.get('difficulty', 15)
+        self.spawnpoints = get_spawn_points(level, self.cell_size)
+        self.last_spawn = time.time()
         self.G = 5
         self.clock = pg.time.Clock()
         self.screen = pg.display.set_mode((self.WIDTH, self.HEIGHT)) if not fullsceen else pg.display.set_mode(
@@ -149,7 +170,7 @@ class Game:
         else:
             image = image.convert_alpha()
         if player:
-            cropped_image = image.subsurface(pg.Rect(18, 18, 68 - 24, 72 - 20))
+            cropped_image = image.subsurface(pg.Rect(18, 18, 68 - 34, 72 - 20))
             # scaled_image = pg.transform.scale(cropped_image, (self.cell_size, self.cell_size * 2))
             return image, cropped_image
         else:
@@ -157,14 +178,25 @@ class Game:
         # return image if not player else (
         #     image, pg.transform.scale(image, (self.cell_size *2, self.cell_size * 2)))
 
+    def spawn_enemies(self):
+        if self.spawnpoints:
+            delay = difficulties.get(self.difficulty, 0)
+            if self.last_spawn + delay <= time.time():
+                enemy = Enemy(random.choice(self.spawnpoints), 'ademan', 100, 1, (self.cell_size, self.cell_size * 2))
+                self.enemy_group.add(enemy)
+                self.last_spawn = time.time()
+
     def set_blocks(self):
         rows = len(level)
         cols = len(level[0])
+        self.map_size = (cols, rows)
         for y in range(rows):
             for x in range(cols):
-                if level[y][x] == 1:
-                    block = Block(x * self.cell_size, y * self.cell_size, 1)
+                try:
+                    block = Block(x * self.cell_size, y * self.cell_size, level[y][x])
                     self.block_group.add(block)
+                except Exception:
+                    f"Текстура {level[y][x]} - {images.get(level[y][x], 0)} не найдена или введена с ошибкой"
 
     def handle_events(self):
         for event in pg.event.get():
@@ -196,6 +228,8 @@ class Game:
         self.screen.fill((33, 31, 32))
         self.camera.update(self.player)
 
+        self.spawn_enemies()
+
         for effect in self.effect_group:
             effect.render()
         # Отрисовка блоков с учетом камеры
@@ -226,7 +260,9 @@ class Game:
 
         # create and set enemies (must be re-worked)
         # self.enemy = Enemy((self.WIDTH // 2 - 200, 300), 'ademan', 500, 1, (game.cell_size, game.cell_size * 2))
-        self.enemy_group.add(Enemy((self.WIDTH // 2 - 200 - 100 * i, 300), 'ademan', 500, 1, (game.cell_size, game.cell_size * 2)) for i in range(5))
+        # self.enemy_group.add(
+        #     Enemy((self.WIDTH // 2 - 200 - 100 * i, 300), 'ademan', 500, 1, (game.cell_size, game.cell_size * 2)) for i
+        #     in range(5))
         self.set_blocks()
 
         while self.running:
@@ -243,12 +279,14 @@ class Player(pg.sprite.Sprite):
         self.image = game.load_image('player_animation/idle/idle_1.png', True)[1]
         self.image_rect = self.image.get_rect()
         self.rect = pg.Rect(x, y, game.cell_size, game.cell_size * 2)
+        self.hp = 34
         self.v_x = 0
         self.v_y = 0
         self.d = 1
         self.on_ground = False
         self.width = game.cell_size
         self.height = game.cell_size * 2
+
         self.last_update = pg.time.get_ticks()
         self.cur_frame = 0
         self.cur_anim = 0
@@ -270,9 +308,20 @@ class Player(pg.sprite.Sprite):
         self.can_shoot = True
         self.last_shoot_time = 0
 
-        self.weapon = self.guns[4]
+        self.weapon = self.guns[2]
 
     def show_info(self):
+        hp_surf = pg.surface.Surface((210, 40))
+        hp_surf.fill(pg.color.Color('white'))
+        red_sub = pg.Surface((200, 30))
+        red_sub.fill(pg.color.Color('red'))
+        hp_rect = pg.Surface(((self.hp * 2), 30))
+        hp_rect.fill((pg.color.Color('green')))
+        hp_surf.blit(red_sub, (5, 5))
+        hp_surf.blit(hp_rect, (5, 5))
+
+        game.screen.blit(hp_surf, (30, 30))
+
         bullet_counter = font_3.render(f"{self.weapon.bullets} / {self.bullets}", True, pg.color.Color('white'))
         game.screen.blit(bullet_counter, (game.WIDTH - 100, 50))
 

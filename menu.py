@@ -126,6 +126,7 @@ class Button:
                         # pg.display.set_mode(game_start_params['resolution'])
                     # physics.game = physics.Game(game_start_params)
                     physics.game.run()
+                    pg.quit()
                 except Exception as e:
                     print(f"Error starting game: {e}")
 

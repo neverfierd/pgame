@@ -10,7 +10,7 @@ font_1 = pg.font.Font(None, 16)
 
 
 def load_image(name, player=False, colorkey=None):
-    crop_rect = pg.Rect(18, 18, 64 - 24, 72 - 20)
+    crop_rect = pg.Rect(18, 18, 34, 72 - 20)
     fullname = os.path.join('data', name)
     if not os.path.isfile(fullname):
         print(f"Файл с изображением '{fullname}' не найден")
@@ -75,7 +75,7 @@ enemy_animations = {
 
 
 class Enemy(pg.sprite.Sprite):
-    def __init__(self, pos, image_type, hp, speed, size):
+    def __init__(self, pos, image_type, hp, speed, size, agro_distance=(200, 60)):
         super().__init__()
         self.x, self.y = pos
         self.width, self.height = size
@@ -194,9 +194,9 @@ class Enemy(pg.sprite.Sprite):
                 break
 
 
-        self.rect.y += self.v_y
+
         for obj in block_group:
-            if obj.rect.colliderect(self.rect.x, self.rect.y, self.width, self.height):
+            if obj.rect.colliderect(self.rect.x + dx, self.rect.y + self.v_y, self.width, self.height):
                 if self.v_y < 0:  # Если враг падает
                     self.v_y = 0
                     self.rect.top = obj.rect.bottom
@@ -205,6 +205,7 @@ class Enemy(pg.sprite.Sprite):
                     self.rect.bottom = obj.rect.top
                     self.on_ground = True
                 break
+        self.rect.y += self.v_y
 
         self.on_ground = False
         self.update_animation()
