@@ -1,5 +1,3 @@
-import math
-
 import pygame as pg
 from functional_file import count_files
 import sys, os
@@ -82,6 +80,7 @@ class Enemy(pg.sprite.Sprite):
         self.rect = pg.Rect(self.x, self.y, self.width, self.height)
 
         self.kill_flag = False
+        self.on_ground = False
         self.death_animation_played = False
         self.last_jump = 0
 
@@ -101,9 +100,11 @@ class Enemy(pg.sprite.Sprite):
         self.animation_cd = 200
 
         self.hp = hp
+        self.max_hp = hp
         self.speed = speed
 
         self.agressive = False
+        self.agressive_timer = 0
 
     def update_move(self, v, d):
         self.v_x = v
@@ -112,7 +113,7 @@ class Enemy(pg.sprite.Sprite):
     def jump(self):
         if pg.time.get_ticks() - 500 >= self.last_jump:
             if self.on_ground:
-                self.v_y = -30
+                self.v_y = -15
                 self.on_ground = False
                 self.last_jump = pg.time.get_ticks()
 
@@ -139,10 +140,22 @@ class Enemy(pg.sprite.Sprite):
                 self.image = self.animations[a_type][self.cur_frame]
             self.last_update = current_time
 
+    def show_info(self, screen, camera):
+        red_hp = pg.Surface((self.width, 5))
+        if self.hp > 0:
+            red_hp.fill(pg.color.Color(153, 40, 8))
+            green_hp = pg.Surface((abs((self.hp / self.max_hp)) * self.width, 5))
+            green_hp.fill((0,154,23))
+            red_hp.blit(green_hp, (0,0))
+        else:
+            red_hp.fill(pg.color.Color(153, 40, 8))
+        screen.blit(red_hp, camera.apply_dest((self.rect.x, self.rect.y - 10)))
+
     def draw_enemy(self, screen, camera):
         if not self.kill_flag or not self.death_animation_played:
-            screen.blit(font_1.render(f"{self.hp}", True, (3, 255, 4)),
-                        camera.apply_dest((self.rect.x, self.rect.y - 10)))
+            # screen.blit(font_1.render(f"{self.hp}", True, (3, 255, 4)),
+            #             camera.apply_dest((self.rect.x, self.rect.y - 10)))
+            self.show_info(screen, camera)
             if self.d > 0:
                 screen.blit(self.image, camera.apply(self))
             elif self.d < 0:
@@ -155,27 +168,29 @@ class Enemy(pg.sprite.Sprite):
             self.kill_flag = True
             self.update_animation()
             if self.death_animation_played:
-                self.kill()  # Удаляем спрайт после завершения анимации смерти
+                self.kill()
             return
 
         self.image_rect.centerx = self.rect.centerx
         self.image_rect.bottom = self.rect.bottom
-        self.v_y += G
-        dx = self.v_x * self.d
 
+        self.v_y += G
         if self.v_y > 20:
             self.v_y = 20
 
         distance_x = abs(self.rect.centerx - player.rect.centerx)
         distance_y = abs(self.rect.centery - player.rect.centery)
 
-        if distance_x <= 200 and distance_y <= 50:
+        # Агрессивный режим
+        if distance_x <= 200 and distance_y <= 60:
             self.agressive = True
-        else:
+            self.agressive_timer = pg.time.get_ticks()
+        if self.agressive_timer + 10000 <= pg.time.get_ticks():
             self.agressive = False
 
+        # Логика движения в агрессивном режиме
         if self.agressive:
-            if distance_x >= 200 or distance_y >= 60:
+            if distance_x >= 200 or distance_y >= 70:
                 self.agressive = False
             if distance_x <= 150:
                 self.v_x = 1
@@ -184,28 +199,42 @@ class Enemy(pg.sprite.Sprite):
                 else:
                     self.d = 1
 
+        # Горизонтальное движение
+        dx = self.v_x * self.d
         self.rect.x += dx
+
+        # Обработка столкновений с блоками по горизонтали
+        collision = False
         for obj in block_group:
             if obj.rect.colliderect(self.rect.x, self.rect.y, self.width, self.height):
-                if self.agressive and pg.time.get_ticks() - self.last_jump >= 1000:  # Прыгаем не чаще чем раз в секунду
-                    self.jump()
-                else:
-                    self.d *= -1
+                collision = True
+                if dx > 0:  # Движение вправо
+                    self.rect.right = obj.rect.left
+                elif dx < 0:  # Движение влево
+                    self.rect.left = obj.rect.right
+                self.d *= -1  # Меняем направление
                 break
 
+        # Прыжок при столкновении с блоком (только в агрессивном режиме и на земле)
+        if self.agressive and collision and self.on_ground:
+            if pg.time.get_ticks() - self.last_jump >= 1000:  # Прыгаем не чаще чем раз в секунду
+                self.jump()
+                self.last_jump = pg.time.get_ticks()
 
+        # Вертикальное движение
+        self.rect.y += self.v_y
 
+        # Обработка столкновений с блоками по вертикали
+        self.on_ground = False
         for obj in block_group:
-            if obj.rect.colliderect(self.rect.x + dx, self.rect.y + self.v_y, self.width, self.height):
-                if self.v_y < 0:  # Если враг падает
+            if obj.rect.colliderect(self.rect.x, self.rect.y, self.width, self.height):
+                if self.v_y < 0:  # Движение вверх
                     self.v_y = 0
                     self.rect.top = obj.rect.bottom
-                elif self.v_y >= 0:
+                elif self.v_y >= 0:  # Движение вниз
                     self.v_y = 0
                     self.rect.bottom = obj.rect.top
                     self.on_ground = True
                 break
-        self.rect.y += self.v_y
 
-        self.on_ground = False
         self.update_animation()

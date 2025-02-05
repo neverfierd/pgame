@@ -314,9 +314,9 @@ class Player(pg.sprite.Sprite):
         hp_surf = pg.surface.Surface((210, 40))
         hp_surf.fill(pg.color.Color('white'))
         red_sub = pg.Surface((200, 30))
-        red_sub.fill(pg.color.Color('red'))
+        red_sub.fill(pg.color.Color(153, 40, 8))
         hp_rect = pg.Surface(((self.hp * 2), 30))
-        hp_rect.fill((pg.color.Color('green')))
+        hp_rect.fill((pg.color.Color((0, 154, 23))))
         hp_surf.blit(red_sub, (5, 5))
         hp_surf.blit(hp_rect, (5, 5))
 
@@ -489,15 +489,16 @@ class Bullet(pg.sprite.Sprite):
 
         for enemy in game.enemy_group:
             if self.rect.colliderect(enemy.rect):
-                collision, shift = check_collision(self.rect, enemy.rect)
-
-                effect = Effect(self.rect.x, self.rect.y, 2, (collision, shift))
-                play_sound('data/weapon/bullet_sprite_hit.wav')
-                game.effect_group.add(effect)
-
-                self.kill()
                 if enemy.hp > 0:
-                    enemy.hp -= game.player.weapon.damage
+                    collision, shift = check_collision(self.rect, enemy.rect)
+
+                    effect = Effect(self.rect.x, self.rect.y, 2, (collision, shift))
+                    play_sound('data/weapon/bullet_sprite_hit.wav')
+                    game.effect_group.add(effect)
+
+                    self.kill()
+                    if enemy.hp > 0:
+                        enemy.hp -= game.player.weapon.damage
 
         # Движение пули
         self.rect.x += self.speed * math.cos(self.angle)
