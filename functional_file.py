@@ -1,4 +1,5 @@
 import os
+import pygame as pg
 
 def count_files(directory):
     try:
@@ -6,3 +7,14 @@ def count_files(directory):
     except (FileNotFoundError, NotADirectoryError, PermissionError, Exception):
         return -1
 
+def play_sound(sound_path):
+    try:
+        sound = pg.mixer.Sound(sound_path)
+        sound.play()
+        return True
+    except pg.error:
+        return False
+    except FileNotFoundError:
+        return False
+    except Exception:
+        return False

@@ -4,7 +4,7 @@ import sys, os
 import math
 
 from enemy import Enemy
-from functional_file import count_files
+from functional_file import count_files, play_sound
 
 pg.font.init()
 
@@ -98,17 +98,7 @@ def check_collision(bullet, object):
             return True, res
 
 
-def play_sound(sound_path):
-    try:
-        sound = pg.mixer.Sound(sound_path)
-        sound.play()
-        return True
-    except pg.error:
-        return False
-    except FileNotFoundError:
-        return False
-    except Exception:
-        return False
+
 
 
 class Camera:
@@ -138,6 +128,7 @@ class Camera:
 class Game:
     def __init__(self, game_parameters, fullsceen=False):
         self.game_parameters = game_parameters
+        self.templist_spawns = []
         self.WIDTH, self.HEIGHT = self.game_parameters.get('resolution') if not fullsceen else (1920, 1080)
         self.cell_size = 30 if self.HEIGHT <= 1600 else 40
         self.map_size = ()
@@ -152,6 +143,7 @@ class Game:
         self.block_group = pg.sprite.Group()
         self.bullet_group = pg.sprite.Group()
         self.effect_group = pg.sprite.Group()
+        self.entity_group = pg.sprite.Group()
         self.enemy_group = pg.sprite.Group()
         self.running = True
         self.camera = Camera(self.WIDTH, self.HEIGHT)
@@ -175,14 +167,12 @@ class Game:
             return image, cropped_image
         else:
             return pg.transform.scale(image, (self.cell_size, self.cell_size))
-        # return image if not player else (
-        #     image, pg.transform.scale(image, (self.cell_size *2, self.cell_size * 2)))
 
-    def spawn_enemies(self):
+    def spawn_enemies(self):  ##use templist spawns for spawning enemioes not near they spawned
         if self.spawnpoints:
-            delay = difficulties.get(self.difficulty, 0)
+            delay = difficulties.get(self.difficulty, 10000)
             if self.last_spawn + delay <= time.time():
-                enemy = Enemy(random.choice(self.spawnpoints), 'ademan', 100, 1, (self.cell_size, self.cell_size * 2))
+                enemy = Enemy(random.choice(self.spawnpoints), 'ademan', 100, 1, (self.cell_size, self.cell_size * 2), (200 ,60),(20, 10000))
                 self.enemy_group.add(enemy)
                 self.last_spawn = time.time()
 
@@ -209,11 +199,17 @@ class Game:
                     self.running = False
                 if event.key == pg.K_r:
                     self.player.reload()
-            if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:  # ЛКМ для стрельбы
-                mouse_x, mouse_y = pg.mouse.get_pos()
-                angle = math.atan2(mouse_y - self.camera.apply(self.player).centery,
-                                   mouse_x - self.camera.apply(self.player).centerx)
-                self.player.shoot(angle)
+            if event.type == pg.MOUSEBUTTONDOWN:  # ЛКМ для стрельбы
+                if event.button == 1:
+                    mouse_x, mouse_y = pg.mouse.get_pos()
+                    angle = math.atan2(mouse_y - self.camera.apply(self.player).centery,
+                                       mouse_x - self.camera.apply(self.player).centerx)
+                    self.player.shoot(angle)
+                elif event.button == 3:
+                    mouse_x, mouse_y = pg.mouse.get_pos()
+                    angle = math.atan2(mouse_y - self.camera.apply(self.player).centery,
+                                       mouse_x - self.camera.apply(self.player).centerx)
+                    self.player.throw_grenade(angle)
 
     def update(self):
         keys = pg.key.get_pressed()
@@ -224,26 +220,28 @@ class Game:
 
         if not any(keys):
             self.player.update_move(0, self.player.d)
-
-        self.screen.fill((33, 31, 32))
+        ##screenfill
+        self.screen.fill((33, 31, 32))  # self.screen.fill((255,255,255))
         self.camera.update(self.player)
 
         self.spawn_enemies()
 
         for effect in self.effect_group:
             effect.render()
-        # Отрисовка блоков с учетом камеры
+
+        for entity in self.entity_group:
+            entity.update()
+
         for block in self.block_group:
             block.update()
 
-        # Отрисовка пуль с учетом камеры
         for bullet in self.bullet_group:
             self.screen.blit(bullet.image, self.camera.apply(bullet))
 
         for enemy in self.enemy_group:
             enemy.update(self.block_group, self.player)
             enemy.draw_enemy(self.screen, self.camera)
-        # Отрисовка игрока с учетом камеры
+
         self.player.draw_player(self.camera)
         # self.enemy.draw_enemy(self.screen, self.camera)
 
@@ -257,12 +255,10 @@ class Game:
         pg.init()
         pg.mixer.init()
         self.player = Player(self.WIDTH // 2, 100)
-
         # create and set enemies (must be re-worked)
-        # self.enemy = Enemy((self.WIDTH // 2 - 200, 300), 'ademan', 500, 1, (game.cell_size, game.cell_size * 2))
-        # self.enemy_group.add(
-        #     Enemy((self.WIDTH // 2 - 200 - 100 * i, 300), 'ademan', 500, 1, (game.cell_size, game.cell_size * 2)) for i
-        #     in range(5))
+        # !!!
+        medkit = Entity(100, 500, 100, 1)
+        self.entity_group.add(medkit)
         self.set_blocks()
 
         while self.running:
@@ -279,7 +275,8 @@ class Player(pg.sprite.Sprite):
         self.image = game.load_image('player_animation/idle/idle_1.png', True)[1]
         self.image_rect = self.image.get_rect()
         self.rect = pg.Rect(x, y, game.cell_size, game.cell_size * 2)
-        self.hp = 34
+        self.hp = 59
+        self.max_hp = 100
         self.v_x = 0
         self.v_y = 0
         self.d = 1
@@ -315,10 +312,11 @@ class Player(pg.sprite.Sprite):
         hp_surf.fill(pg.color.Color('white'))
         red_sub = pg.Surface((200, 30))
         red_sub.fill(pg.color.Color(153, 40, 8))
-        hp_rect = pg.Surface(((self.hp * 2), 30))
-        hp_rect.fill((pg.color.Color((0, 154, 23))))
         hp_surf.blit(red_sub, (5, 5))
-        hp_surf.blit(hp_rect, (5, 5))
+        if self.hp > 0:
+            hp_rect = pg.Surface(((self.hp * 2), 30))
+            hp_rect.fill((pg.color.Color((0, 154, 23))))
+            hp_surf.blit(hp_rect, (5, 5))
 
         game.screen.blit(hp_surf, (30, 30))
 
@@ -365,6 +363,10 @@ class Player(pg.sprite.Sprite):
                 self.last_shoot_time += self.weapon.reload_time
             else:
                 return
+
+    def throw_grenade(self, angle):
+        grenade = Grenade(self.rect.centerx, self.rect.centery - 10, angle, 10, 5000, pg.time.get_ticks())
+        game.bullet_group.add(grenade)
 
     def update_move(self, v, d):
         self.v_x = v
@@ -429,7 +431,7 @@ class Player(pg.sprite.Sprite):
 
 
 class Effect(pg.sprite.Sprite):
-    def __init__(self, x, y, effect_type, shift_needed):
+    def __init__(self, x, y, effect_type, shift_needed=(0, 0)):
         super().__init__()
         self.names = effects.get(effect_type)
         self.images = [game.load_image(self.names[i]) for i in range(len(self.names))]
@@ -466,15 +468,14 @@ class Effect(pg.sprite.Sprite):
 
 
 class Bullet(pg.sprite.Sprite):
-    def __init__(self, x, y, angle, speed, shift=0):
+    def __init__(self, x, y, angle, speed, shift=0, damage=0):
         super().__init__()
         self.image = pg.transform.scale(game.load_image('weapon/images/bullet.png'), (4, 4))
         self.rect = self.image.get_rect(center=(x, y))
         self.speed = speed
         angle_degrees = math.degrees(angle)
-        # 2. Добавляем смещение в градусах
+        self.damage = damage
         shifted_angle_degrees = angle_degrees + shift
-        # 3. Преобразуем обратно в радианы
         self.angle = math.radians(shifted_angle_degrees)
 
     def update(self):
@@ -496,13 +497,94 @@ class Bullet(pg.sprite.Sprite):
                     play_sound('data/weapon/bullet_sprite_hit.wav')
                     game.effect_group.add(effect)
 
-                    self.kill()
-                    if enemy.hp > 0:
-                        enemy.hp -= game.player.weapon.damage
 
-        # Движение пули
+                    if enemy.hp > 0 and self.damage == 0:
+                        enemy.hp -= game.player.weapon.damage
+                    else:
+                        enemy.hp -= self.damage
+                    self.kill()
+
         self.rect.x += self.speed * math.cos(self.angle)
         self.rect.y += self.speed * math.sin(self.angle)
+
+
+class Grenade(pg.sprite.Sprite):
+    def __init__(self, x, y, angle, speed, delay, shoot_time):
+        super().__init__()
+        self.image = pg.transform.scale(
+            pg.transform.scale(game.load_image('weapon/images/grenade.png'), (game.cell_size, game.cell_size)),
+            (20, 20))
+        self.rect = self.image.get_rect(center=(x, y))
+        self.speed = speed
+        self.angle = angle
+        self.shoot_time = shoot_time
+        self.delay = delay
+        self.gravity = 0.5
+        self.v_x = speed * math.cos(angle)  # Начальная скорость по X
+        self.v_y = speed * math.sin(angle)  # Начальная скорость по Y
+        self.on_ground = False
+        self.bounce_factor = 0.7  # Коэффициент отскока
+        self.bounce_count = 0  # Счетчик отскоков
+
+    def update(self):
+        # Применяем гравитацию
+        self.v_y += self.gravity
+
+        # Обновляем позицию
+        self.rect.x += self.v_x
+        self.rect.y += self.v_y
+
+        # Обработка столкновений с блоками
+        for obj in game.block_group:
+            if obj.rect.colliderect(self.rect):
+                if self.bounce_count >= 3:
+                    # Если граната отскочила 3 раза, она останавливается
+                    self.v_x = 0
+                    self.v_y = 0
+                    self.rect.y -= 10
+                    self.gravity = 0
+                    break
+
+                # Вычисляем глубину проникновения
+                overlap_x = min(self.rect.right - obj.rect.left, obj.rect.right - self.rect.left)
+                overlap_y = min(self.rect.bottom - obj.rect.top, obj.rect.bottom - self.rect.top)
+
+                # Определяем сторону столкновения
+                if overlap_x < overlap_y:
+                    # Столкновение по горизонтали (справа или слева)
+                    if self.v_x > 0:  # Движение вправо
+                        self.rect.right = obj.rect.left
+                    elif self.v_x < 0:  # Движение влево
+                        self.rect.left = obj.rect.right
+                    self.v_x = -self.v_x * self.bounce_factor  # Отскок по X
+                    self.v_y *= self.bounce_factor  # Уменьшаем вертикальную скорость
+                else:
+                    # Столкновение по вертикали (сверху или снизу)
+                    if self.v_y > 0:  # Движение вниз
+                        self.rect.bottom = obj.rect.top
+                        self.v_y = -self.v_y * self.bounce_factor  # Отскок по Y
+                    elif self.v_y < 0:  # Движение вверх
+                        self.rect.top = obj.rect.bottom
+                        self.v_y = -self.v_y * self.bounce_factor  # Отскок по Y
+
+                self.bounce_count += 1
+
+        # Взрыв гранаты по истечении времени
+        if self.shoot_time + self.delay <= pg.time.get_ticks():
+            self.explode()
+
+    def explode(self):
+        for _ in range(20):  # Количество осколков
+            shrapnel_angle = random.uniform(0, 2 * math.pi)  # Случайный угол
+            shrapnel_speed = random.uniform(15, 25)  # Случайная скорость осколка
+            bullet = Bullet(self.rect.centerx, self.rect.centery, shrapnel_angle, shrapnel_speed, 0, 50)
+            game.bullet_group.add(bullet)
+
+            # Логика взрыва
+            # explosion_effect = Effect(self.rect.x, self.rect.y, 3)
+            # game.effect_group.add(explosion_effect)
+        play_sound('data/weapon/grenade_explode.wav')
+        self.kill()
 
 
 class Block(pg.sprite.Sprite):
@@ -533,17 +615,27 @@ class Weapon:
 
 
 # class for items that can be interacted
+# entity 1-medkit
+# entity 2-bullet box
 class Entity(pg.sprite.Sprite):
     def __init__(self, x, y, image_type, functional):
         super().__init__()
-        self.image = game.load_image(images.get(image_type, 0))  ###pg.Surface((game.cell_size, game.cell_size))
+        self.image = pg.transform.scale(game.load_image(images.get(image_type, 0)), (
+        game.cell_size, game.cell_size))  ###pg.Surface((game.cell_size, game.cell_size))
+
         self.functional = functional
-        self.rect = self.image.get_rect()
+        self.rect = pg.rect.Rect(x, y, game.cell_size, game.cell_size)  # self.image.get_rect()
         self.rect.x, self.rect.y = x, y
 
+    # update medkit and check if player collides self.rect
     def update(self):
+        if self.rect.colliderect(game.player.rect):
+            if self.functional == 1:
+                game.player.hp = min(game.player.hp + 50, 100)
+                self.kill()
+
         game.screen.blit(self.image, game.camera.apply_dest((self.rect.x, self.rect.y)))
-        pg.draw.rect(game.screen, (0, 0, 0), game.camera.apply(self), 1)
+        # pg.draw.rect(game.screen, (0, 0, 0), game.camera.apply(self), 1)
 
 
 game = Game(game_parameters, False)

@@ -61,15 +61,33 @@ class Menu:
             self.open_settigns()
         elif self.menu_oppened:
             self.open_menu()
-        screen.blit(self.menu, (0,0))
+        screen.blit(self.menu, (0, 0))
 
     def open_menu(self):
         self.menu.fill(pg.color.Color('white'))
         button_container.clear()
         play_button = Button((50, 150), 150, 50, 'ИГРАТЬ', 1)
         settings_button = Button((50, 250), 220, 50, 'НАСТРОЙКИ', 2)
+        level_current = pg.font.Font(None, 22).render(f'ТЕКУЩИЙ УРОВЕНЬ {game_start_params['level']}', True,
+                                                      pg.color.Color('red'))
+
+        level_peace = Button((WIDTH - 350, HEIGHT * 0.8 - 250), 300, 50, 'МИРНЫЙ', 31, 22)
+        level_easy = Button((WIDTH - 350, HEIGHT * 0.8 - 200), 300, 50, 'ЛЕГКИЙ', 32, 22)
+        level_normal = Button((WIDTH - 350, HEIGHT * 0.8 - 150), 300, 50, 'СРЕДНИЙ', 33, 22)
+        level_hard = Button((WIDTH - 350, HEIGHT * 0.8 - 100), 300, 50, 'СЛОЖНЫЙ', 34, 22)
+        level_extreme = Button((WIDTH - 350, HEIGHT * 0.8 - 50), 300, 50, 'ЭКСТРИМАЛЬНЫЙ', 35, 22)
+
+        button_container.append(level_peace)
+        button_container.append(level_easy)
+        button_container.append(level_normal)
+        button_container.append(level_hard)
+        button_container.append(level_extreme)
+
         button_container.append(play_button)
         button_container.append(settings_button)
+
+        # blits
+        self.menu.blit(level_current, (WIDTH - 300, HEIGHT - HEIGHT * 0.8))
         screen.blit(self.menu, (0, 0))
 
     def open_settigns(self):
@@ -97,11 +115,12 @@ class Menu:
 
 
 class Button:
-    def __init__(self, pos, width, height, text, functional):
+    def __init__(self, pos, width, height, text, functional, size=1):
         self.width, self.height = (width, height)
         self.x, self.y = pos
         self.text = text
         self.f = functional
+        self.size = size
 
         self.surface = pg.Surface((self.width, self.height))
         self.surface.fill(pg.color.Color('white'))
@@ -113,7 +132,10 @@ class Button:
 
     def update(self, pos, event=None):
         if self.rect.collidepoint(pos):
-            self.text_surface = font_2.render(self.text, True, pg.color.Color('red'))
+            if self.size == 1:
+                self.text_surface = font_2.render(self.text, True, pg.color.Color('red'))
+            else:
+                self.text_surface = pg.font.Font(None, self.size + 10).render(self.text, True, pg.color.Color('red'))
             # here you can add buttons and change their functions
             if event and self.f == 1:
                 physics.game_parameters = game_start_params
@@ -138,8 +160,21 @@ class Button:
             if event and self.f == 19:
                 menu.settings_opened = False
                 menu.menu_oppened = True
+            if event and self.f == 31:
+                game_start_params['level'] = 'peace'
+            if event and self.f == 32:
+                game_start_params['level'] = 'easy'
+            if event and self.f == 33:
+                game_start_params['level'] = 'normal'
+            if event and self.f == 34:
+                game_start_params['level'] = 'hard'
+            if event and self.f == 35:
+                game_start_params['level'] = 'extreme'
         else:
-            self.text_surface = font_1.render(self.text, True, pg.color.Color('red'))
+            if self.size != 1:
+                self.text_surface = pg.font.Font(None, self.size).render(self.text, True, pg.color.Color('red'))
+            else:
+                self.text_surface = font_1.render(self.text, True, pg.color.Color('red'))
 
         self.surface.fill(pg.color.Color('white'))
         self.surface.blit(self.text_surface, self.text_rect)

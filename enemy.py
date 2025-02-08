@@ -1,9 +1,10 @@
 import pygame as pg
-from functional_file import count_files
+from functional_file import count_files, play_sound
 import sys, os
 
 G = 3
 pg.font.init()
+pg.mixer.init()
 font_1 = pg.font.Font(None, 16)
 
 
@@ -16,48 +17,6 @@ def load_image(name, player=False, colorkey=None):
     image = pg.image.load(fullname)
     return image if not player else (image, pg.Surface.subsurface(image, crop_rect))
 
-
-import pygame as pg
-
-
-def check_collision(rect1, rect2):
-    # где сторона_столкновения представляет собой вектор столкновения (x, y)
-    # (1, 0) - столкновение справа
-    # (-1, 0) - столкновение слева
-    # (0, 1) - столкновение снизу
-    # (0, -1) - столкновение сверху
-    # (0, 0) - нет столкновения
-
-    if not rect1.colliderect(rect2):
-        return False, (0, 0)
-
-    dx = rect1.centerx - rect2.centerx
-    dy = rect1.centery - rect2.centery
-
-    # Получаем ширину и высоту
-    rect1_w = rect1.width / 2
-    rect1_h = rect1.height / 2
-
-    rect2_w = rect2.width / 2
-    rect2_h = rect2.height / 2
-
-    # Вычисляем пересечение
-    overlap_x = rect1_w + rect2_w - abs(dx)
-    overlap_y = rect1_h + rect2_h - abs(dy)
-
-    if overlap_x > 0 and overlap_y > 0:
-        if overlap_x < overlap_y:
-            if dx > 0:  # справа
-                return True, (1, 0)
-            else:  # слева
-                return True, (-1, 0)
-        else:
-            if dy > 0:  # снизу
-                return True, (0, 1)
-            else:  # сверху
-                return True, (0, -1)
-
-    return False, (0, 0)
 
 
 enemy_animations = {
@@ -73,18 +32,20 @@ enemy_animations = {
 
 
 class Enemy(pg.sprite.Sprite):
-    def __init__(self, pos, image_type, hp, speed, size, agro_distance=(200, 60)):
+    def __init__(self, pos, image_type, hp, speed, size, agro_distance=(200, 60), combat_specs=(20,2000)):
         super().__init__()
         self.x, self.y = pos
         self.width, self.height = size
-        self.rect = pg.Rect(self.x, self.y, self.width, self.height)
+        self.rect = pg.Rect(*pos, *size)
 
         self.kill_flag = False
         self.on_ground = False
         self.death_animation_played = False
         self.last_jump = 0
+        self.last_attack = 0
+        self.damage, self.attack_cd = combat_specs
+        self.agro_width, self.agro_height = agro_distance
 
-        # Физика и движение
         self.v_x = 0
         self.v_y = 0
         self.d = 1
@@ -145,8 +106,8 @@ class Enemy(pg.sprite.Sprite):
         if self.hp > 0:
             red_hp.fill(pg.color.Color(153, 40, 8))
             green_hp = pg.Surface((abs((self.hp / self.max_hp)) * self.width, 5))
-            green_hp.fill((0,154,23))
-            red_hp.blit(green_hp, (0,0))
+            green_hp.fill((0, 154, 23))
+            red_hp.blit(green_hp, (0, 0))
         else:
             red_hp.fill(pg.color.Color(153, 40, 8))
         screen.blit(red_hp, camera.apply_dest((self.rect.x, self.rect.y - 10)))
@@ -163,6 +124,41 @@ class Enemy(pg.sprite.Sprite):
             pg.draw.rect(screen, pg.color.Color('blue'), camera.apply(self), 1)
             pg.draw.rect(screen, pg.color.Color('red'), camera.apply(self.image_rect, True), 1)
 
+    def attack(self, player):
+        if player.hp > 0:
+            if self.last_attack + self.attack_cd <= pg.time.get_ticks():
+                player.hp -= self.damage
+                play_sound('data/weapon/player_hit.mp3')
+                self.last_attack = pg.time.get_ticks()
+
+
+    def ai_logic(self, player):
+        distance_x = abs(self.rect.centerx - player.rect.centerx)
+        distance_y = abs(self.rect.centery - player.rect.centery)
+
+        print(distance_x, distance_y)
+
+        if distance_x <= self.agro_width and distance_y <= self.agro_height:
+            self.agressive = True
+            self.agressive_timer = pg.time.get_ticks()
+        if self.agressive_timer + 10000 <= pg.time.get_ticks():
+            self.agressive = False
+
+        if self.agressive:
+            if distance_x >= self.agro_width + 50 or distance_y >= self.agro_height + 20:
+                self.agressive = False
+            if distance_x <= 150:
+                self.v_x = 1
+                if player.rect.centerx < self.rect.centerx:
+                    self.d = -1
+                else:
+                    self.d = 1
+
+        if distance_x <= 30 and distance_y <= 50:
+            self.attack(player)
+
+
+
     def update(self, block_group, player):
         if self.hp <= 0:
             self.kill_flag = True
@@ -178,32 +174,11 @@ class Enemy(pg.sprite.Sprite):
         if self.v_y > 20:
             self.v_y = 20
 
-        distance_x = abs(self.rect.centerx - player.rect.centerx)
-        distance_y = abs(self.rect.centery - player.rect.centery)
+        self.ai_logic(player)
 
-        # Агрессивный режим
-        if distance_x <= 200 and distance_y <= 60:
-            self.agressive = True
-            self.agressive_timer = pg.time.get_ticks()
-        if self.agressive_timer + 10000 <= pg.time.get_ticks():
-            self.agressive = False
-
-        # Логика движения в агрессивном режиме
-        if self.agressive:
-            if distance_x >= 200 or distance_y >= 70:
-                self.agressive = False
-            if distance_x <= 150:
-                self.v_x = 1
-                if player.rect.centerx < self.rect.centerx:
-                    self.d = -1
-                else:
-                    self.d = 1
-
-        # Горизонтальное движение
         dx = self.v_x * self.d
         self.rect.x += dx
 
-        # Обработка столкновений с блоками по горизонтали
         collision = False
         for obj in block_group:
             if obj.rect.colliderect(self.rect.x, self.rect.y, self.width, self.height):
@@ -215,16 +190,13 @@ class Enemy(pg.sprite.Sprite):
                 self.d *= -1  # Меняем направление
                 break
 
-        # Прыжок при столкновении с блоком (только в агрессивном режиме и на земле)
         if self.agressive and collision and self.on_ground:
-            if pg.time.get_ticks() - self.last_jump >= 1000:  # Прыгаем не чаще чем раз в секунду
+            if pg.time.get_ticks() - self.last_jump >= 1000:
                 self.jump()
                 self.last_jump = pg.time.get_ticks()
 
-        # Вертикальное движение
         self.rect.y += self.v_y
 
-        # Обработка столкновений с блоками по вертикали
         self.on_ground = False
         for obj in block_group:
             if obj.rect.colliderect(self.rect.x, self.rect.y, self.width, self.height):
