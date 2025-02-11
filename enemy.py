@@ -9,7 +9,7 @@ font_1 = pg.font.Font(None, 16)
 
 
 def load_image(name, player=False, colorkey=None):
-    crop_rect = pg.Rect(18, 18, 34, 72 - 20)
+    crop_rect = pg.Rect(18, 18, 34, 72-18)
     fullname = os.path.join('data', name)
     if not os.path.isfile(fullname):
         print(f"Файл с изображением '{fullname}' не найден")
@@ -21,13 +21,22 @@ def load_image(name, player=False, colorkey=None):
 
 enemy_animations = {
     'ademan': {
-        'idle': [load_image(f'enemy_animation/idle/idle_ademan{i}.png', True)[1] for i in
-                 range(count_files('data/enemy_animation/idle'))],
-        'run': [load_image(f'enemy_animation/run/run_ademan{i}.png', True)[1] for i in
-                range(count_files('data/enemy_animation/run'))],
-        'death': [load_image(f'enemy_animation/death/death_ademan{i}.png', True)[0] for i in
-                  range(count_files('data/enemy_animation/death'))]
+        'idle': [load_image(f'enemy_animation/ademan/idle/idle_ademan{i}.png', True)[1] for i in
+                 range(count_files('data/enemy_animation/ademan/idle'))],
+        'run': [load_image(f'enemy_animation/ademan/run/run_ademan{i}.png', True)[1] for i in
+                range(count_files('data/enemy_animation/ademan/run'))],
+        'death': [load_image(f'enemy_animation/ademan/death/death_ademan{i}.png', True)[0] for i in
+                  range(count_files('data/enemy_animation/ademan/death'))]
+    },
+    'dark': {
+        'idle': [load_image(f'enemy_animation/dark/idle/dark_idle{i}.png', True)[1] for i in
+                 range(count_files('data/enemy_animation/dark/idle'))],
+        'run': [load_image(f'enemy_animation/dark/run/dark_run{i}.png', True)[1] for i in
+                range(count_files('data/enemy_animation/dark/run'))],
+        'death': [load_image(f'enemy_animation/dark/death/dark_death{i}.png', True)[0] for i in
+                  range(count_files('data/enemy_animation/dark/death'))]
     }
+
 }
 
 
@@ -52,7 +61,7 @@ class Enemy(pg.sprite.Sprite):
 
         self.animations = enemy_animations.get(image_type)
         self.a_types = {"idle": 0, "run": 1, "death": 2}
-        self.image = load_image(f'enemy_animation/idle/idle_ademan0.png', True)[1]
+        self.image = self.animations.get('idle')[0]
         self.image_rect = self.image.get_rect()
         self.last_update = pg.time.get_ticks()
         self.cur_frame = 0
@@ -127,7 +136,11 @@ class Enemy(pg.sprite.Sprite):
     def attack(self, player):
         if player.hp > 0:
             if self.last_attack + self.attack_cd <= pg.time.get_ticks():
-                player.hp -= self.damage
+                if player.armor > 0:
+                    player.armor -= self.damage
+                    player.hp -= self.damage * 0.1
+                else:
+                    player.hp -= self.damage
                 play_sound('data/weapon/player_hit.mp3')
                 self.last_attack = pg.time.get_ticks()
 

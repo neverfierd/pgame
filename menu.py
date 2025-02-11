@@ -24,7 +24,7 @@ clock = pg.time.Clock()
 
 resolutions = {10: (1600, 1200), 11: (1280, 960), 12: (1280, 720), 13: (1920, 1080), 14: 'fullscreen'}
 
-game_start_params = {'resolution': (1280, 720), 'level': 'normal'}
+game_start_params = {'resolution': (1280, 720), 'difficulty': 'normal'}
 
 
 def change_resolution(res):
@@ -68,7 +68,7 @@ class Menu:
         button_container.clear()
         play_button = Button((50, 150), 150, 50, 'ИГРАТЬ', 1)
         settings_button = Button((50, 250), 220, 50, 'НАСТРОЙКИ', 2)
-        level_current = pg.font.Font(None, 22).render(f'ТЕКУЩИЙ УРОВЕНЬ {game_start_params['level']}', True,
+        level_current = pg.font.Font(None, 22).render(f'ТЕКУЩИЙ УРОВЕНЬ {game_start_params['difficulty']}', True,
                                                       pg.color.Color('red'))
 
         level_peace = Button((WIDTH - 350, HEIGHT * 0.8 - 250), 300, 50, 'МИРНЫЙ', 31, 22)
@@ -161,15 +161,15 @@ class Button:
                 menu.settings_opened = False
                 menu.menu_oppened = True
             if event and self.f == 31:
-                game_start_params['level'] = 'peace'
+                game_start_params['difficulty'] = 'peace'
             if event and self.f == 32:
-                game_start_params['level'] = 'easy'
+                game_start_params['difficulty'] = 'easy'
             if event and self.f == 33:
-                game_start_params['level'] = 'normal'
+                game_start_params['difficulty'] = 'normal'
             if event and self.f == 34:
-                game_start_params['level'] = 'hard'
+                game_start_params['difficulty'] = 'hard'
             if event and self.f == 35:
-                game_start_params['level'] = 'extreme'
+                game_start_params['difficulty'] = 'extreme'
         else:
             if self.size != 1:
                 self.text_surface = pg.font.Font(None, self.size).render(self.text, True, pg.color.Color('red'))
