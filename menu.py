@@ -1,5 +1,6 @@
 import pygame as pg
-import sys, os
+import sys
+import os
 
 import physics
 
@@ -18,7 +19,7 @@ font_2 = pg.font.Font(None, 48)
 font_3 = pg.font.Font(None, 16)
 clock = pg.time.Clock()
 
-###for Button functional
+# for Button functional
 # 0 - 9 - menu_main_buttons
 # 10 - 19 - settings_main_buttons
 

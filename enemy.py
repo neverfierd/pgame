@@ -1,6 +1,7 @@
 import pygame as pg
 from functional_file import count_files, play_sound
-import sys, os
+import sys
+import os
 
 G = 3
 pg.font.init()
@@ -8,15 +9,14 @@ pg.mixer.init()
 font_1 = pg.font.Font(None, 16)
 
 
-def load_image(name, player=False, colorkey=None):
-    crop_rect = pg.Rect(18, 18, 34, 72-18)
+def load_image(name, player=False):
+    crop_rect = pg.Rect(18, 18, 34, 72 - 18)
     fullname = os.path.join('data', name)
     if not os.path.isfile(fullname):
         print(f"Файл с изображением '{fullname}' не найден")
         sys.exit()
     image = pg.image.load(fullname)
     return image if not player else (image, pg.Surface.subsurface(image, crop_rect))
-
 
 
 enemy_animations = {
@@ -41,7 +41,7 @@ enemy_animations = {
 
 
 class Enemy(pg.sprite.Sprite):
-    def __init__(self, pos, image_type, hp, speed, size, agro_distance=(200, 60), combat_specs=(20,2000)):
+    def __init__(self, pos, image_type, hp, speed, size, agro_distance=(200, 60), combat_specs=(20, 2000)):
         super().__init__()
         self.x, self.y = pos
         self.width, self.height = size
@@ -83,7 +83,7 @@ class Enemy(pg.sprite.Sprite):
     def jump(self):
         if pg.time.get_ticks() - 500 >= self.last_jump:
             if self.on_ground:
-                self.v_y = -15
+                self.v_y = -15 if self.width <= 40 else -30
                 self.on_ground = False
                 self.last_jump = pg.time.get_ticks()
 
@@ -127,15 +127,16 @@ class Enemy(pg.sprite.Sprite):
             #             camera.apply_dest((self.rect.x, self.rect.y - 10)))
             self.show_info(screen, camera)
             if self.d > 0:
-                screen.blit(self.image, camera.apply(self))
+                screen.blit(pg.transform.scale(self.image, (self.rect.width, self.rect.height)), camera.apply(self))
             elif self.d < 0:
-                screen.blit(pg.transform.flip(self.image, True, False), camera.apply(self))
+                screen.blit(pg.transform.flip(pg.transform.scale(self.image, (self.rect.width, self.rect.height)), True, False), camera.apply(self))
             pg.draw.rect(screen, pg.color.Color('blue'), camera.apply(self), 1)
             pg.draw.rect(screen, pg.color.Color('red'), camera.apply(self.image_rect, True), 1)
 
     def attack(self, player):
         if player.hp > 0:
             if self.last_attack + self.attack_cd <= pg.time.get_ticks():
+
                 if player.armor > 0:
                     player.armor -= self.damage
                     player.hp -= self.damage * 0.1
@@ -143,7 +144,6 @@ class Enemy(pg.sprite.Sprite):
                     player.hp -= self.damage
                 play_sound('data/weapon/player_hit.mp3')
                 self.last_attack = pg.time.get_ticks()
-
 
     def ai_logic(self, player):
         distance_x = abs(self.rect.centerx - player.rect.centerx)
@@ -169,8 +169,6 @@ class Enemy(pg.sprite.Sprite):
 
         if distance_x <= 30 and distance_y <= 50:
             self.attack(player)
-
-
 
     def update(self, block_group, player):
         if self.hp <= 0:

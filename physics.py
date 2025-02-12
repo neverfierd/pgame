@@ -1,6 +1,8 @@
-import random, time
+import random
+import time
 import pygame as pg
-import sys, os
+import sys
+import os
 import math
 
 from enemy import Enemy
@@ -18,7 +20,10 @@ game_parameters = {
 images = {1: 'textures/blocks/mud0.png',
           2: 'textures/blocks/box.png',
           3: 'textures/blocks/brick.png',
-          100: 'textures/entities/medkit.png'}
+          4: 'textures/blocks/mossy_brick.jpg',
+          5: 'textures/blocks/old_bricks.jpg',
+          100: 'textures/entities/medkit.png',
+          101: 'textures/entities/bullet_box.png'}
 
 shoot_sounds = {'pistol': 'data/weapon/pistol_shoot.wav',
                 'carabine': 'data/weapon/carabine_shoot.wav',
@@ -41,8 +46,9 @@ effects = {
         'effects/hit_sprite/hit_bloody_sprite4.png', 'effects/hit_sprite/hit_bloody_sprite5.png'
 
         ]}
-
-difficulties = {'peace': 0, 'easy': 20, 'normal': 15, 'hard': 10, 'extreme': 5}
+# delay for zombie, max zombie count, supplies spawn delay
+difficulties = {'peace': (0, 0, 10000), 'easy': (10, 10, 20), 'normal': (8, 15, 20), 'hard': (5, 20, 25),
+                'extreme': (3, 30, 25)}
 
 
 def read_level_file(filename):
@@ -65,7 +71,7 @@ def get_spawn_points(level, block_size):
     spawn_points = []
     for row_index, row in enumerate(level):
         for col_index, block in enumerate(row):
-            if block == 1:  # Если это блок
+            if block != 0:  # Если это блок
                 # Проверяем, есть ли 2 блока над ним свободными
                 if (row_index > 1 and
                         level[row_index - 1][col_index] == 0 and
@@ -133,9 +139,12 @@ class Game:
         self.WIDTH, self.HEIGHT = self.game_parameters.get('resolution') if not fullsceen else (1920, 1080)
         self.cell_size = 30 if self.HEIGHT <= 1600 else 40
         self.map_size = ()
-        self.difficulty = self.game_parameters.get('difficulty', 15)
+        self.difficulty = self.game_parameters.get('difficulty', 10)
+        self.max_zombies = difficulties.get(self.difficulty, (10000, 10, 20))[1]
         self.spawnpoints = get_spawn_points(level, self.cell_size)
         self.last_spawn = time.time()
+        self.last_supplies_spawm = time.time()
+        self.spawn_flag = True
         self.G = 5
         self.clock = pg.time.Clock()
         self.screen = pg.display.set_mode((self.WIDTH, self.HEIGHT)) if not fullsceen else pg.display.set_mode(
@@ -170,8 +179,9 @@ class Game:
             return pg.transform.scale(image, (self.cell_size, self.cell_size))
 
     def spawn_enemies(self):
-        if self.spawnpoints:
-            delay = difficulties.get(self.difficulty, 10000)
+        if self.spawnpoints and self.spawn_flag:
+            delay = difficulties.get(self.difficulty, (10000, 15, 20))[0]
+            supplies_delay = difficulties.get(self.difficulty, (10000, 15, 20))[2]
             if self.last_spawn + delay <= time.time():
 
                 suitable_spawnpoints = []
@@ -191,16 +201,37 @@ class Game:
                         suitable_spawnpoints.append(coords)
 
                 if suitable_spawnpoints:
+                    bosspawn_chance = random.random()
+                    if time.time() - self.last_supplies_spawm >= supplies_delay:
+                        self.spawm_supplies(suitable_spawnpoints)
                     coords = random.choice(suitable_spawnpoints)
-                    enemy = Enemy(coords, 'dark', 100, 1, (self.cell_size, self.cell_size * 2), (200, 60),
-                                  (20, 10000))
+                    if bosspawn_chance > 0.90:
+                        enemy = Enemy(coords, 'dark', random.randint(350, 500), 1,
+                                      (self.cell_size * 2, self.cell_size * 4), (random.randint(400, 500), 60),
+                                      (150, 15000))
+                    elif bosspawn_chance <= 0.9:
+                        enemy = Enemy(coords, 'ademan', random.randint(80, 120), random.randint(1, 2),
+                                      (self.cell_size, self.cell_size * 2), (random.randint(180, 230), 60),
+                                      (random.randint(15, 25), random.randint(8000, 12000)))
                     self.enemy_group.add(enemy)
                     self.templist_spawns.append(coords)
                     self.last_spawn = time.time()
 
                 # Удаляем самый старый элемент из templist_spawns, если список стал больше 10
-                if len(self.templist_spawns) > 10:
+                if len(self.templist_spawns) > 30:
                     self.templist_spawns.pop(0)
+
+    def spawm_supplies(self, coords):
+        x, y = random.choice(coords)
+        chance = random.random()
+        if chance < 0.51:
+            medkit = Entity(x, y + self.cell_size, 100, 1)
+            self.entity_group.add(medkit)
+            self.last_supplies_spawm = time.time()
+        elif chance > 0.5:
+            bullet_box = Entity(x, y + self.cell_size, 101, 2)
+            self.entity_group.add(bullet_box)
+            self.last_supplies_spawm = time.time()
 
     def set_blocks(self):
         rows = len(level)
@@ -239,6 +270,11 @@ class Game:
                     self.player.throw_grenade(angle)
 
     def update(self):
+        if len(self.enemy_group) >= self.max_zombies:
+            self.spawn_flag = False
+        elif len(self.enemy_group) < self.max_zombies:
+            self.spawn_flag = True
+
         keys = pg.key.get_pressed()
         if keys[pg.K_d]:
             self.player.update_move(5, 1)
@@ -248,7 +284,7 @@ class Game:
         if not any(keys):
             self.player.update_move(0, self.player.d)
         ##screenfill
-        self.screen.fill((255,255,255)) #self.screen.fill((33, 31, 32))
+        self.screen.fill((33, 31, 32))  # self.screen.fill((255,255,255))
         self.camera.update(self.player)
 
         self.spawn_enemies()
@@ -284,8 +320,7 @@ class Game:
         self.player = Player(self.WIDTH // 2, 100)
         # create and set enemies (must be re-worked)
         # !!!
-        medkit = Entity(100, 500, 100, 1)
-        self.entity_group.add(medkit)
+
         self.set_blocks()
 
         while self.running:
@@ -304,8 +339,10 @@ class Player(pg.sprite.Sprite):
         self.rect = pg.Rect(x, y, game.cell_size, game.cell_size * 2)
         self.hp = 59
         self.armor = 50
+        self.grenades = 2
         self.max_hp = 100
         self.max_armor = 150
+        self.max_grenades = 5
         self.v_x = 0
         self.v_y = 0
         self.d = 1
@@ -345,7 +382,8 @@ class Player(pg.sprite.Sprite):
         if self.hp <= 0: self.hp = 0
         if self.armor <= 0: self.armor = 0
         if self.hp >= self.max_hp: self.hp = self.max_hp
-        if self.armor >= self.armor: self.armor = self.max_armor
+        if self.armor >= self.max_armor: self.armor = self.max_armor
+        if self.grenades >= self.max_grenades: self.grenades = self.max_grenades
 
         hp_surf = pg.surface.Surface((210, 40))
         hp_surf.fill(pg.color.Color('white'))
@@ -366,6 +404,10 @@ class Player(pg.sprite.Sprite):
         bullet_counter = font_3.render(f"{self.weapon.bullets} / {self.bullets}", True, pg.color.Color('white'))
         game.screen.blit(bullet_counter, (game.WIDTH - 150, 50))
         game.screen.blit(guns_icons.get(self.weapon.type, 1), (game.WIDTH - 190, 80))
+        for i in range(self.grenades):
+            game.screen.blit(pg.transform.scale(game.load_image('weapon/images/grenade.png'),
+                                                (game.cell_size * 2, game.cell_size * 2)),
+                             (game.WIDTH - 190 + game.cell_size * i, 130))
 
     def shoot(self, angle):
         if pg.time.get_ticks() - self.weapon.shoot_cd >= self.last_shoot_time:
@@ -409,8 +451,10 @@ class Player(pg.sprite.Sprite):
                 return
 
     def throw_grenade(self, angle):
-        grenade = Grenade(self.rect.centerx, self.rect.centery - 10, angle, 10, 5000, pg.time.get_ticks())
-        game.bullet_group.add(grenade)
+        if self.grenades > 0:
+            grenade = Grenade(self.rect.centerx, self.rect.centery - 10, angle, 10, 5000, pg.time.get_ticks())
+            game.bullet_group.add(grenade)
+            self.grenades -= 1
 
     def change_gun(self, event=None):
         if event:
@@ -551,7 +595,7 @@ class Bullet(pg.sprite.Sprite):
 
                 effect = Effect(self.rect.x, self.rect.y, 1, (collision, shift))
                 game.effect_group.add(effect)
-                play_sound('data/weapon/block_hit.wav')
+                play_sound(f'data/weapon/block_hit{random.choice(range(0, 5))}.mp3')
                 self.kill()
 
         for enemy in game.enemy_group:
@@ -702,12 +746,16 @@ class Entity(pg.sprite.Sprite):
             if self.functional == 1:
                 game.player.hp = min(game.player.hp + 50, 100)
                 self.kill()
+            if self.functional == 2:
+                game.player.bullets += 50
+                game.player.grenades += random.randint(1, 2)
+                self.kill()
 
         game.screen.blit(self.image, game.camera.apply_dest((self.rect.x, self.rect.y)))
         # pg.draw.rect(game.screen, (0, 0, 0), game.camera.apply(self), 1)
 
 
-game = Game(game_parameters, False)
+game = Game(game_parameters, True)
 game.run()
 
 guns = {1: Weapon(40, 20, 14, 5000, 350, 'pistol', None, 1),
