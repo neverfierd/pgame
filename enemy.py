@@ -172,10 +172,12 @@ class Enemy(pg.sprite.Sprite):
 
     def update(self, block_group, player):
         if self.hp <= 0:
+
             self.kill_flag = True
             self.update_animation()
             if self.death_animation_played:
                 self.kill()
+                player.kill_count += 1
             return
 
         self.image_rect.centerx = self.rect.centerx

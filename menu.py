@@ -2,6 +2,7 @@ import pygame as pg
 import sys
 import os
 
+import functional_file
 import physics
 
 pg.init()
@@ -30,6 +31,10 @@ game_start_params = {'resolution': (1280, 720), 'difficulty': 'normal'}
 
 def change_resolution(res):
     game_start_params['resolution'] = res
+
+
+stats = functional_file.get_statistic('data/stats.txt')
+print(stats)
 
 
 def load_image(name, player=False, colorkey=None):
@@ -71,12 +76,16 @@ class Menu:
         settings_button = Button((50, 250), 220, 50, 'НАСТРОЙКИ', 2)
         level_current = pg.font.Font(None, 22).render(f'ТЕКУЩИЙ УРОВЕНЬ {game_start_params['difficulty']}', True,
                                                       pg.color.Color('red'))
+        best_total_counter = pg.font.Font(None, 22).render(f'результат всего: {stats.get('total', 'err')}', True,
+                                                           pg.color.Color('blue'))
 
-        level_peace = Button((WIDTH - 350, HEIGHT * 0.8 - 250), 300, 50, 'МИРНЫЙ', 31, 22)
-        level_easy = Button((WIDTH - 350, HEIGHT * 0.8 - 200), 300, 50, 'ЛЕГКИЙ', 32, 22)
-        level_normal = Button((WIDTH - 350, HEIGHT * 0.8 - 150), 300, 50, 'СРЕДНИЙ', 33, 22)
-        level_hard = Button((WIDTH - 350, HEIGHT * 0.8 - 100), 300, 50, 'СЛОЖНЫЙ', 34, 22)
-        level_extreme = Button((WIDTH - 350, HEIGHT * 0.8 - 50), 300, 50, 'ЭКСТРИМАЛЬНЫЙ', 35, 22)
+        level_peace = Button((WIDTH - 350, HEIGHT * 0.8 - 250), 300, 50, f'МИРНЫЙ', 31, 22)
+        level_easy = Button((WIDTH - 350, HEIGHT * 0.8 - 200), 300, 50, f'ЛЕГКИЙ - {stats.get('easy', -1)}', 32, 22)
+        level_normal = Button((WIDTH - 350, HEIGHT * 0.8 - 150), 300, 50, f'СРЕДНИЙ - {stats.get('normal', -1)}', 33,
+                              22)
+        level_hard = Button((WIDTH - 350, HEIGHT * 0.8 - 100), 300, 50, f'СЛОЖНЫЙ - {stats.get('hard', -1)}', 34, 22)
+        level_extreme = Button((WIDTH - 350, HEIGHT * 0.8 - 50), 300, 50, f'ЭКСТРИМАЛЬНЫЙ - {stats.get('extreme', -1)}',
+                               35, 22)
 
         button_container.append(level_peace)
         button_container.append(level_easy)
@@ -89,6 +98,7 @@ class Menu:
 
         # blits
         self.menu.blit(level_current, (WIDTH - 300, HEIGHT - HEIGHT * 0.8))
+        self.menu.blit(best_total_counter, (WIDTH - 300, HEIGHT - HEIGHT * 0.7))
         screen.blit(self.menu, (0, 0))
 
     def open_settigns(self):

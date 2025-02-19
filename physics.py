@@ -5,6 +5,7 @@ import sys
 import os
 import math
 
+import functional_file
 from enemy import Enemy
 from functional_file import count_files, play_sound
 
@@ -71,8 +72,8 @@ def get_spawn_points(level, block_size):
     spawn_points = []
     for row_index, row in enumerate(level):
         for col_index, block in enumerate(row):
-            if block != 0:  # Если это блок
-                # Проверяем, есть ли 2 блока над ним свободными
+            if block != 0:
+                # check if can spawn(2 blocks above is empty)
                 if (row_index > 1 and
                         level[row_index - 1][col_index] == 0 and
                         level[row_index - 2][col_index] == 0):
@@ -83,9 +84,6 @@ def get_spawn_points(level, block_size):
 
 
 def check_collision(bullet, object):
-    if not hasattr(bullet, 'center') or not hasattr(object, 'center'):
-        raise ValueError("bullet и object должны иметь атрибут center")
-
     bullet_center = bullet.center
     object_center = object.center
 
@@ -115,18 +113,17 @@ class Camera:
         self.height = height
         self.scroll_x = 0
         self.scroll_y = 0
-        self.smoothness = 10  # Плавность скролла
+        self.smoothness = 10
 
-    def apply(self, entity, rect=False):
+    def apply(self, entity, rect=False):  # camera apply for rects
         if rect: return entity.move(self.camera.topleft)
         return entity.rect.move(self.camera.topleft)
 
-    def apply_dest(self, pos):
+    def apply_dest(self, pos):  # camera apply for coords
         x, y = pos
         return (x - self.scroll_x, y - self.scroll_y)
 
     def update(self, target):
-        # Обновление позиции камеры в зависимости от позиции цели
         self.scroll_x += (target.rect.centerx - self.width // 2 - self.scroll_x) // 10
         self.scroll_y += (target.rect.centery - self.height // 2 - self.scroll_y) // 10
         self.camera = pg.Rect(-self.scroll_x, -self.scroll_y, self.width, self.height)
@@ -135,28 +132,86 @@ class Camera:
 class Game:
     def __init__(self, game_parameters, fullsceen=False):
         self.game_parameters = game_parameters
-        self.templist_spawns = []
+        self.G = 5
         self.WIDTH, self.HEIGHT = self.game_parameters.get('resolution') if not fullsceen else (1920, 1080)
         self.cell_size = 30 if self.HEIGHT <= 1600 else 40
         self.map_size = ()
         self.difficulty = self.game_parameters.get('difficulty', 10)
         self.max_zombies = difficulties.get(self.difficulty, (10000, 10, 20))[1]
+
         self.spawnpoints = get_spawn_points(level, self.cell_size)
+        self.templist_spawns = []
         self.last_spawn = time.time()
         self.last_supplies_spawm = time.time()
         self.spawn_flag = True
-        self.G = 5
+        self.written_flag = False
+
         self.clock = pg.time.Clock()
         self.screen = pg.display.set_mode((self.WIDTH, self.HEIGHT)) if not fullsceen else pg.display.set_mode(
             (self.WIDTH, self.HEIGHT), pg.FULLSCREEN)
+
+        self.camera = Camera(self.WIDTH, self.HEIGHT)
+
         self.player = None
         self.block_group = pg.sprite.Group()
         self.bullet_group = pg.sprite.Group()
         self.effect_group = pg.sprite.Group()
         self.entity_group = pg.sprite.Group()
         self.enemy_group = pg.sprite.Group()
+
         self.running = True
-        self.camera = Camera(self.WIDTH, self.HEIGHT)
+        self.game_over = False
+        self.cur_stat = functional_file.get_statistic('data/stats.txt')
+
+    def reset_game(self):
+        self.block_group.empty()
+        self.bullet_group.empty()
+        self.effect_group.empty()
+        self.entity_group.empty()
+        self.enemy_group.empty()
+
+        self.spawnpoints = get_spawn_points(level, self.cell_size)
+        self.templist_spawns = []
+        self.last_spawn = time.time()
+        self.last_supplies_spawm = time.time()
+        self.spawn_flag = True
+
+        self.player = Player(self.WIDTH // 2, 100)
+
+        self.set_blocks()
+
+        self.game_over = False
+
+    def handle_game_over(self):
+        if not self.written_flag:
+            if self.cur_stat[self.difficulty] < self.player.kill_count:
+                self.cur_stat[self.difficulty] = self.player.kill_count
+
+            self.cur_stat['total'] += self.player.kill_count
+
+            self.write_stats()
+            self.written_flag = True
+
+        for event in pg.event.get():
+            if event.type == pg.QUIT or event.type == pg.K_ESCAPE:
+                self.running = False
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_r:  # Перезапуск игры при нажатии клавиши R
+                    self.reset_game()
+                if event.key == pg.K_ESCAPE:
+                    self.running = False
+
+        font = pg.font.Font(None, 74)
+        text = font.render(f'ты умер. убийств: {self.player.kill_count}', True, (255, 0, 0))
+        text_rect = text.get_rect(center=(self.WIDTH // 2, self.HEIGHT // 2))
+        self.screen.blit(text, text_rect)
+
+        font = pg.font.Font(None, 50)
+        text = font.render('нажми R  для рестарта', True, (255, 255, 255))
+        text_rect = text.get_rect(center=(self.WIDTH // 2, self.HEIGHT // 2 + 50))
+        self.screen.blit(text, text_rect)
+
+        pg.display.flip()
 
     def load_image(self, name, player=False, colorkey=None):
         fullname = os.path.join('data', name)
@@ -178,6 +233,17 @@ class Game:
         else:
             return pg.transform.scale(image, (self.cell_size, self.cell_size))
 
+    def write_stats(self):
+        saved_stat = self.cur_stat.copy()
+        try:
+            with open('data/stats.txt', 'w') as file:
+                for key, value in self.cur_stat.items():
+                    file.write(f'{key}: {value}\n')
+        except Exception:
+            print('error writing file')
+            self.cur_stat = saved_stat
+
+
     def spawn_enemies(self):
         if self.spawnpoints and self.spawn_flag:
             delay = difficulties.get(self.difficulty, (10000, 15, 20))[0]
@@ -188,11 +254,11 @@ class Game:
                 for coords in self.spawnpoints:
                     is_suitable = True
                     for prev_coords in self.templist_spawns:
-                        # Проверяем, насколько близко текущие координаты к предыдущим
+                        # calculate differendce between coordinates
                         x_diff = abs(coords[0] - prev_coords[0])
                         y_diff = abs(coords[1] - prev_coords[1])
 
-                        # Проверяем, выполняются ли условия для того, чтобы считать координаты неподходящими
+                        # check difference between old coords
                         if x_diff < 3 and y_diff < 5 and (coords[1] != prev_coords[1] or x_diff < 3):
                             is_suitable = False
                             break
@@ -216,8 +282,7 @@ class Game:
                     self.enemy_group.add(enemy)
                     self.templist_spawns.append(coords)
                     self.last_spawn = time.time()
-
-                # Удаляем самый старый элемент из templist_spawns, если список стал больше 10
+                # delete positions if they get old
                 if len(self.templist_spawns) > 30:
                     self.templist_spawns.pop(0)
 
@@ -257,7 +322,7 @@ class Game:
                     self.running = False
                 if event.key == pg.K_r:
                     self.player.reload()
-            if event.type == pg.MOUSEBUTTONDOWN:  # ЛКМ для стрельбы
+            if event.type == pg.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     mouse_x, mouse_y = pg.mouse.get_pos()
                     angle = math.atan2(mouse_y - self.camera.apply(self.player).centery,
@@ -268,6 +333,24 @@ class Game:
                     angle = math.atan2(mouse_y - self.camera.apply(self.player).centery,
                                        mouse_x - self.camera.apply(self.player).centerx)
                     self.player.throw_grenade(angle)
+
+    def death_scene(self, duration_ms):
+        alpha_surface = pg.Surface(self.screen.get_size(), pg.SRCALPHA)
+        start_time = pg.time.get_ticks()
+        clock = pg.time.Clock()
+        while pg.time.get_ticks() - start_time < duration_ms:
+            alpha = int(255 * (pg.time.get_ticks() - start_time) / duration_ms)
+            if alpha > 255:
+                alpha = 255
+
+            alpha_surface.fill((0, 0, 0, alpha))
+            self.screen.blit(self.screen, (0, 0))
+            self.screen.blit(alpha_surface, (0, 0))
+
+            pg.display.flip()
+            clock.tick(50)
+
+        self.game_over = True
 
     def update(self):
         if len(self.enemy_group) >= self.max_zombies:
@@ -306,7 +389,6 @@ class Game:
             enemy.draw_enemy(self.screen, self.camera)
 
         self.player.draw_player(self.camera)
-        # self.enemy.draw_enemy(self.screen, self.camera)
 
         self.block_group.update()
         self.bullet_group.update()
@@ -317,17 +399,17 @@ class Game:
     def run(self):
         pg.init()
         pg.mixer.init()
-        self.player = Player(self.WIDTH // 2, 100)
-        # create and set enemies (must be re-worked)
-        # !!!
-
+        self.reset_game()
         self.set_blocks()
 
         while self.running:
-            self.handle_events()
-            self.update()
-            pg.display.flip()
-            self.clock.tick(50)
+            if self.game_over:
+                self.handle_game_over()
+            else:
+                self.handle_events()
+                self.update()
+                pg.display.flip()
+                self.clock.tick(50)
         pg.quit()
 
 
@@ -337,22 +419,28 @@ class Player(pg.sprite.Sprite):
         self.image = game.load_image('player_animation/idle/idle_1.png', True)[1]
         self.image_rect = self.image.get_rect()
         self.rect = pg.Rect(x, y, game.cell_size, game.cell_size * 2)
-        self.hp = 59
-        self.armor = 50
+
+        self.hp = 100
+        self.armor = 150
         self.grenades = 2
+        self.kill_count = 0
+
         self.max_hp = 100
         self.max_armor = 150
         self.max_grenades = 5
+
         self.v_x = 0
         self.v_y = 0
         self.d = 1
         self.on_ground = False
+
         self.width = game.cell_size
         self.height = game.cell_size * 2
 
         self.last_update = pg.time.get_ticks()
         self.cur_frame = 0
         self.cur_anim = 0
+        self.animation_cd = 200
         self.animations = {
             'idle': [game.load_image(f'player_animation/idle/idle_{i}.png', True)[1] for i in
                      range(count_files('data/player_animation/idle'))],
@@ -360,54 +448,51 @@ class Player(pg.sprite.Sprite):
                     range(count_files('data/player_animation/run'))]
         }
 
-        # self.guns = {1: Weapon(40, 20, 14, 5000, 350, 'pistol', None, 1),
-        #              2: Weapon(85, 25, 30, 5000, 200, 'carabine', None, 2),
-        #              3: Weapon(320, 30, 10, 6500, 4000, 'rifle', None, 3),
-        #              4: Weapon(20, 25, 8, 6500, 1500, 'shotgun', None, 4)
-        #              }
         self.guns = {1: Weapon(40, 20, 14, 5000, 350, 'pistol', None, 1),
                      2: Weapon(85, 25, 30, 5000, 200, 'carabine', None, 2),
                      3: Weapon(320, 30, 10, 6500, 4000, 'rifle', None, 3),
                      4: Weapon(20, 25, 8, 6500, 1500, 'shotgun', None, 4)
                      }
 
-        self.animation_cd = 200
         self.bullets = 50
         self.can_shoot = True
         self.last_shoot_time = 0
-
         self.weapon = self.guns[1]
 
     def show_info(self):
-        if self.hp <= 0: self.hp = 0
-        if self.armor <= 0: self.armor = 0
-        if self.hp >= self.max_hp: self.hp = self.max_hp
-        if self.armor >= self.max_armor: self.armor = self.max_armor
-        if self.grenades >= self.max_grenades: self.grenades = self.max_grenades
+        if not game.game_over:
+            if self.hp <= 0: self.hp = 0
+            if self.armor <= 0: self.armor = 0
+            if self.hp >= self.max_hp: self.hp = self.max_hp
+            if self.armor >= self.max_armor: self.armor = self.max_armor
+            if self.grenades >= self.max_grenades: self.grenades = self.max_grenades
 
-        hp_surf = pg.surface.Surface((210, 40))
-        hp_surf.fill(pg.color.Color('white'))
-        red_sub = pg.Surface((200, 30))
-        red_sub.fill(pg.color.Color(153, 40, 8))
-        hp_surf.blit(red_sub, (5, 5))
-        if self.hp > 0:
-            hp_rect = pg.Surface(((self.hp * 2), 30))
-            hp_rect.fill((pg.color.Color((0, 154, 23))))
-            hp_surf.blit(hp_rect, (5, 5))
-        if self.armor > 0:
-            armor_surf = pg.Surface((abs(self.armor / self.max_armor) * 200, 10))
-            armor_surf.fill((pg.color.Color(101, 113, 194)))
-            hp_surf.blit(armor_surf, (5, 5))
+            hp_surf = pg.surface.Surface((210, 40))
+            hp_surf.fill(pg.color.Color('white'))
+            red_sub = pg.Surface((200, 30))
+            red_sub.fill(pg.color.Color(153, 40, 8))
+            hp_surf.blit(red_sub, (5, 5))
+            if self.hp > 0:
+                hp_rect = pg.Surface(((self.hp * 2), 30))
+                hp_rect.fill((pg.color.Color((0, 154, 23))))
+                hp_surf.blit(hp_rect, (5, 5))
+            if self.armor > 0:
+                armor_surf = pg.Surface((abs(self.armor / self.max_armor) * 200, 10))
+                armor_surf.fill((pg.color.Color(101, 113, 194)))
+                hp_surf.blit(armor_surf, (5, 5))
 
-        game.screen.blit(hp_surf, (30, 30))
+            game.screen.blit(hp_surf, (30, 30))
 
-        bullet_counter = font_3.render(f"{self.weapon.bullets} / {self.bullets}", True, pg.color.Color('white'))
-        game.screen.blit(bullet_counter, (game.WIDTH - 150, 50))
-        game.screen.blit(guns_icons.get(self.weapon.type, 1), (game.WIDTH - 190, 80))
-        for i in range(self.grenades):
-            game.screen.blit(pg.transform.scale(game.load_image('weapon/images/grenade.png'),
-                                                (game.cell_size * 2, game.cell_size * 2)),
-                             (game.WIDTH - 190 + game.cell_size * i, 130))
+            kill_cnt = font_3.render(f"убийства: {self.kill_count}", True, pg.color.Color('white'))
+            game.screen.blit(kill_cnt, (50, hp_surf.get_rect().bottom + 30))
+
+            bullet_counter = font_3.render(f"{self.weapon.bullets} / {self.bullets}", True, pg.color.Color('white'))
+            game.screen.blit(bullet_counter, (game.WIDTH - 150, 50))
+            game.screen.blit(guns_icons.get(self.weapon.type, 1), (game.WIDTH - 190, 80))
+            for i in range(self.grenades):
+                game.screen.blit(pg.transform.scale(game.load_image('weapon/images/grenade.png'),
+                                                    (game.cell_size * 2, game.cell_size * 2)),
+                                 (game.WIDTH - 190 + game.cell_size * i, 130))
 
     def shoot(self, angle):
         if pg.time.get_ticks() - self.weapon.shoot_cd >= self.last_shoot_time:
@@ -514,7 +599,9 @@ class Player(pg.sprite.Sprite):
         pg.draw.rect(game.screen, pg.color.Color('red'), camera.apply(self.image_rect, True), 1)
 
     def update(self):
-        ##shoot block
+        if self.hp <= 0:
+            game.death_scene(3000)
+            return
 
         self.image_rect.centerx = self.rect.centerx
         self.image_rect.bottom = self.rect.bottom
@@ -629,73 +716,61 @@ class Grenade(pg.sprite.Sprite):
         self.shoot_time = shoot_time
         self.delay = delay
         self.gravity = 0.5
-        self.v_x = speed * math.cos(angle)  # Начальная скорость по X
-        self.v_y = speed * math.sin(angle)  # Начальная скорость по Y
+        self.v_x = speed * math.cos(angle)
+        self.v_y = speed * math.sin(angle)
         self.on_ground = False
-        self.bounce_factor = 0.7  # Коэффициент отскока
-        self.bounce_count = 0  # Счетчик отскоков
-        self.min_velocity = 0.1  # Минимальная скорость для движения
+        self.bounce_factor = 0.7
+        self.bounce_count = 0
+        self.min_velocity = 0.1
 
     def update(self):
         self.v_y += self.gravity
 
-        # Обновляем позицию
         if self.bounce_count < 5:
             self.rect.x += self.v_x
             self.rect.y += self.v_y
 
-        # Обработка столкновений с блоками
         for obj in game.block_group:
             if obj.rect.colliderect(self.rect):
                 if self.bounce_count >= 5 or abs(self.v_x) < self.min_velocity and abs(self.v_y) < self.min_velocity:
                     self.v_x = 0
                     self.v_y = 0
-                    # Аккуратно выталкиваем гранату из стены, чтобы избежать застревания
                     while obj.rect.colliderect(self.rect):
                         self.rect.y -= 1
-                    self.rect.y += 1  # Возвращаем гранату на 1 пиксель вниз чтобы она не застряла навечно
+                    self.rect.y += 1
                     break
 
-                # Вычисляем глубину проникновения
                 overlap_x = min(self.rect.right - obj.rect.left, obj.rect.right - self.rect.left)
                 overlap_y = min(self.rect.bottom - obj.rect.top, obj.rect.bottom - self.rect.top)
 
-                # Определяем сторону столкновения
                 if overlap_x < overlap_y:
-                    # Столкновение по горизонтали (справа или слева)
-                    if self.v_x > 0:  # Движение вправо
+                    if self.v_x > 0:
                         self.rect.right = obj.rect.left
-                    elif self.v_x < 0:  # Движение влево
+                    elif self.v_x < 0:
                         self.rect.left = obj.rect.right
-                    self.v_x = -self.v_x * self.bounce_factor  # Отскок по X
-                    self.v_y *= 0.5  # Сильнее уменьшаем вертикальную скорость
+                    self.v_x = -self.v_x * self.bounce_factor
+                    self.v_y *= 0.5
                 else:
-                    # Столкновение по вертикали (сверху или снизу)
-                    if self.v_y > 0:  # Движение вниз
+                    if self.v_y > 0:
                         self.rect.bottom = obj.rect.top
-                        self.v_y = -self.v_y * self.bounce_factor  # Отскок по Y
-                        # Небольшой "толчок" в сторону от стены, чтобы избежать залипания
+                        self.v_y = -self.v_y * self.bounce_factor
                         self.rect.x += math.copysign(1, self.v_x)
-                    elif self.v_y < 0:  # Движение вверх
+                    elif self.v_y < 0:
                         self.rect.top = obj.rect.bottom
-                        self.v_y = -self.v_y * self.bounce_factor  # Отскок по Y
+                        self.v_y = -self.v_y * self.bounce_factor
 
                 self.bounce_count += 1
 
-        # Взрыв гранаты по истечении времени
         if self.shoot_time + self.delay <= pg.time.get_ticks():
             self.explode()
 
     def explode(self):
-        for _ in range(25):  # Количество осколков
-            shrapnel_angle = random.uniform(0, 2 * math.pi)  # Случайный угол
-            shrapnel_speed = random.uniform(15, 25)  # Случайная скорость осколка
+        for _ in range(25):
+            shrapnel_angle = random.uniform(0, 2 * math.pi)  # random angle
+            shrapnel_speed = random.uniform(15, 25)
             bullet = Bullet(self.rect.centerx, self.rect.centery, shrapnel_angle, shrapnel_speed, 0, 50)
             game.bullet_group.add(bullet)
 
-            # Логика взрыва
-            # explosion_effect = Effect(self.rect.x, self.rect.y, 3)
-            # game.effect_group.add(explosion_effect)
         play_sound('data/weapon/grenade_explode.wav')
         self.kill()
 
@@ -756,7 +831,6 @@ class Entity(pg.sprite.Sprite):
 
 
 game = Game(game_parameters, True)
-game.run()
 
 guns = {1: Weapon(40, 20, 14, 5000, 350, 'pistol', None, 1),
         2: Weapon(85, 25, 30, 5000, 200, 'carabine', None, 2),

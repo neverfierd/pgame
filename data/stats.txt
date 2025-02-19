@@ -1,0 +1,5 @@
+easy: 0
+normal: 12
+hard: 0
+extreme: 0
+total: 12
