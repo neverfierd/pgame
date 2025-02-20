@@ -1,6 +1,8 @@
 import pygame as pg
-import sys, os
+import sys
+import os
 
+import functional_file
 import physics
 
 pg.init()
@@ -18,17 +20,21 @@ font_2 = pg.font.Font(None, 48)
 font_3 = pg.font.Font(None, 16)
 clock = pg.time.Clock()
 
-###for Button functional
+# for Button functional
 # 0 - 9 - menu_main_buttons
 # 10 - 19 - settings_main_buttons
 
-resolutions = {10: (1600, 1200), 11: (1280, 960), 12: (1280, 720), 13: (1920, 1080)}
+resolutions = {10: (1600, 1200), 11: (1280, 960), 12: (1280, 720), 13: (1920, 1080), 14: 'fullscreen'}
 
-game_start_params = {'resolution': (1280, 720), 'level': 'normal'}
+game_start_params = {'resolution': (1280, 720), 'difficulty': 'normal'}
 
 
 def change_resolution(res):
     game_start_params['resolution'] = res
+
+
+stats = functional_file.get_statistic('data/stats.txt')
+print(stats)
 
 
 def load_image(name, player=False, colorkey=None):
@@ -61,15 +67,38 @@ class Menu:
             self.open_settigns()
         elif self.menu_oppened:
             self.open_menu()
-        screen.blit(self.menu, (0,0))
+        screen.blit(self.menu, (0, 0))
 
     def open_menu(self):
         self.menu.fill(pg.color.Color('white'))
         button_container.clear()
         play_button = Button((50, 150), 150, 50, 'ИГРАТЬ', 1)
         settings_button = Button((50, 250), 220, 50, 'НАСТРОЙКИ', 2)
+        level_current = pg.font.Font(None, 22).render(f'ТЕКУЩИЙ УРОВЕНЬ {game_start_params['difficulty']}', True,
+                                                      pg.color.Color('red'))
+        best_total_counter = pg.font.Font(None, 22).render(f'результат всего: {stats.get('total', 'err')}', True,
+                                                           pg.color.Color('blue'))
+
+        level_peace = Button((WIDTH - 350, HEIGHT * 0.8 - 250), 300, 50, f'МИРНЫЙ', 31, 22)
+        level_easy = Button((WIDTH - 350, HEIGHT * 0.8 - 200), 300, 50, f'ЛЕГКИЙ - {stats.get('easy', -1)}', 32, 22)
+        level_normal = Button((WIDTH - 350, HEIGHT * 0.8 - 150), 300, 50, f'СРЕДНИЙ - {stats.get('normal', -1)}', 33,
+                              22)
+        level_hard = Button((WIDTH - 350, HEIGHT * 0.8 - 100), 300, 50, f'СЛОЖНЫЙ - {stats.get('hard', -1)}', 34, 22)
+        level_extreme = Button((WIDTH - 350, HEIGHT * 0.8 - 50), 300, 50, f'ЭКСТРИМАЛЬНЫЙ - {stats.get('extreme', -1)}',
+                               35, 22)
+
+        button_container.append(level_peace)
+        button_container.append(level_easy)
+        button_container.append(level_normal)
+        button_container.append(level_hard)
+        button_container.append(level_extreme)
+
         button_container.append(play_button)
         button_container.append(settings_button)
+
+        # blits
+        self.menu.blit(level_current, (WIDTH - 300, HEIGHT - HEIGHT * 0.8))
+        self.menu.blit(best_total_counter, (WIDTH - 300, HEIGHT - HEIGHT * 0.7))
         screen.blit(self.menu, (0, 0))
 
     def open_settigns(self):
@@ -85,9 +114,10 @@ class Menu:
         res_button_2 = Button((50, 200), 300, 40, '1280 x 960 (4:3)', 11)
         res_button_3 = Button((50, 250), 300, 40, '1280 x 720(16:9)', 12)
         res_button_4 = Button((50, 300), 300, 40, '1920 x 1080(16:9)', 13)
+        fullscreen_button = Button((50, 450), 300, 40, 'Полноэкранный', 14)
         confirm_button = Button((400, 400), 150, 50, 'СОХРАНИТЬ', 19)
 
-        res_buttons = [res_button_1, res_button_2, res_button_3, res_button_4, confirm_button]
+        res_buttons = [res_button_1, res_button_2, res_button_3, res_button_4, fullscreen_button, confirm_button]
 
         button_container.extend(res_buttons, )
         # button container append
@@ -96,11 +126,12 @@ class Menu:
 
 
 class Button:
-    def __init__(self, pos, width, height, text, functional):
+    def __init__(self, pos, width, height, text, functional, size=1):
         self.width, self.height = (width, height)
         self.x, self.y = pos
         self.text = text
         self.f = functional
+        self.size = size
 
         self.surface = pg.Surface((self.width, self.height))
         self.surface.fill(pg.color.Color('white'))
@@ -112,23 +143,49 @@ class Button:
 
     def update(self, pos, event=None):
         if self.rect.collidepoint(pos):
-            self.text_surface = font_2.render(self.text, True, pg.color.Color('red'))
+            if self.size == 1:
+                self.text_surface = font_2.render(self.text, True, pg.color.Color('red'))
+            else:
+                self.text_surface = pg.font.Font(None, self.size + 10).render(self.text, True, pg.color.Color('red'))
             # here you can add buttons and change their functions
             if event and self.f == 1:
                 physics.game_parameters = game_start_params
-                physics.game = physics.Game(game_start_params)
-                physics.game.run()
+                try:
+                    if game_start_params['resolution'] == 'fullscreen':
+                        physics.game = physics.Game(game_start_params, True)
+                        # pg.display.set_mode((0, 0), pg.FULLSCREEN)
+                    else:
+                        physics.game = physics.Game(game_start_params, False)
+                        # pg.display.set_mode(game_start_params['resolution'])
+                    # physics.game = physics.Game(game_start_params)
+                    physics.game.run()
+                    pg.quit()
+                except Exception as e:
+                    print(f"Error starting game: {e}")
 
             if event and self.f == 2:
                 menu.menu_oppened = False
                 menu.settings_opened = True
-            if event and self.f in (10, 11, 12, 13):
+            if event and self.f in (10, 11, 12, 13, 14):
                 change_resolution(resolutions.get(self.f))
             if event and self.f == 19:
                 menu.settings_opened = False
                 menu.menu_oppened = True
+            if event and self.f == 31:
+                game_start_params['difficulty'] = 'peace'
+            if event and self.f == 32:
+                game_start_params['difficulty'] = 'easy'
+            if event and self.f == 33:
+                game_start_params['difficulty'] = 'normal'
+            if event and self.f == 34:
+                game_start_params['difficulty'] = 'hard'
+            if event and self.f == 35:
+                game_start_params['difficulty'] = 'extreme'
         else:
-            self.text_surface = font_1.render(self.text, True, pg.color.Color('red'))
+            if self.size != 1:
+                self.text_surface = pg.font.Font(None, self.size).render(self.text, True, pg.color.Color('red'))
+            else:
+                self.text_surface = font_1.render(self.text, True, pg.color.Color('red'))
 
         self.surface.fill(pg.color.Color('white'))
         self.surface.blit(self.text_surface, self.text_rect)
