@@ -24,7 +24,8 @@ images = {1: 'textures/blocks/mud0.png',
           4: 'textures/blocks/mossy_brick.jpg',
           5: 'textures/blocks/old_bricks.jpg',
           100: 'textures/entities/medkit.png',
-          101: 'textures/entities/bullet_box.png'}
+          101: 'textures/entities/bullet_box.png',
+          102: 'textures/entities/armor.png'}
 
 shoot_sounds = {'pistol': 'data/weapon/pistol_shoot.wav',
                 'carabine': 'data/weapon/carabine_shoot.wav',
@@ -78,7 +79,7 @@ def get_spawn_points(level, block_size):
                         level[row_index - 1][col_index] == 0 and
                         level[row_index - 2][col_index] == 0):
                     x = col_index * block_size
-                    y = (row_index - 2) * block_size  # Два блока над блоком
+                    y = (row_index - 2) * block_size  # два блока над блоком
                     spawn_points.append((x, y))
     return spawn_points
 
@@ -196,7 +197,7 @@ class Game:
             if event.type == pg.QUIT or event.type == pg.K_ESCAPE:
                 self.running = False
             if event.type == pg.KEYDOWN:
-                if event.key == pg.K_r:  # Перезапуск игры при нажатии клавиши R
+                if event.key == pg.K_r:
                     self.reset_game()
                 if event.key == pg.K_ESCAPE:
                     self.running = False
@@ -292,11 +293,14 @@ class Game:
         if chance < 0.51:
             medkit = Entity(x, y + self.cell_size, 100, 1)
             self.entity_group.add(medkit)
-            self.last_supplies_spawm = time.time()
         elif chance > 0.5:
-            bullet_box = Entity(x, y + self.cell_size, 101, 2)
-            self.entity_group.add(bullet_box)
-            self.last_supplies_spawm = time.time()
+            if chance >=0.75:
+                armor = Entity(x, y + self.cell_size, 102, 3)
+                self.entity_group.add(armor)
+            else:
+                bullet_box = Entity(x, y + self.cell_size, 101, 2)
+                self.entity_group.add(bullet_box)
+        self.last_supplies_spawm = time.time()
 
     def set_blocks(self):
         rows = len(level)
@@ -820,11 +824,14 @@ class Entity(pg.sprite.Sprite):
         if self.rect.colliderect(game.player.rect):
             if self.functional == 1:
                 game.player.hp = min(game.player.hp + 50, 100)
-                self.kill()
+
             if self.functional == 2:
                 game.player.bullets += 50
                 game.player.grenades += random.randint(1, 2)
-                self.kill()
+
+            if self.functional == 3:
+                game.player.armor += 50
+            self.kill()
 
         game.screen.blit(self.image, game.camera.apply_dest((self.rect.x, self.rect.y)))
         # pg.draw.rect(game.screen, (0, 0, 0), game.camera.apply(self), 1)
