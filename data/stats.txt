@@ -1,5 +1,5 @@
 easy: 0
-normal: 12
+normal: 0
 hard: 0
-extreme: 41
-total: 53
+extreme: 0
+total: 0
