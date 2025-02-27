@@ -23,6 +23,7 @@ images = {1: 'textures/blocks/mud0.png',
           3: 'textures/blocks/brick.png',
           4: 'textures/blocks/mossy_brick.jpg',
           5: 'textures/blocks/old_bricks.jpg',
+          6: 'textures/blocks/glass.png',
           100: 'textures/entities/medkit.png',
           101: 'textures/entities/bullet_box.png',
           102: 'textures/entities/armor.png'}
